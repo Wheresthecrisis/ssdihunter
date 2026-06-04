@@ -54,6 +54,37 @@ class AddToListRequest(BaseModel):
     keywords: list[dict]
 
 
+# ─── Seed expansion ────────────────────────────────────────────────────────────
+# Google Ads suppresses broad "disability" as a sensitive category.
+# These expansion maps bypass that by fanning out to specific seeds that work,
+# then aggregating and deduplicating the combined results.
+
+SEED_EXPANSIONS = {
+    "disability": [
+        "ssdi", "ssi", "social security disability", "disability claim",
+        "disability benefits", "disability appeal", "disability attorney",
+        "disability application", "disability eligibility", "disability denial",
+    ],
+    "disabled": [
+        "ssdi", "ssi", "social security disability", "disability benefits",
+        "disability claim", "disabled benefits",
+    ],
+    "social security": [
+        "ssdi", "ssi", "social security disability", "social security benefits",
+        "social security appeal", "social security claim",
+    ],
+    "benefits": [
+        "ssdi benefits", "ssi benefits", "disability benefits",
+        "social security disability benefits",
+    ],
+}
+
+def expand_seed(seed: str) -> list[str]:
+    """Return list of seeds to query. Expands suppressed broad terms."""
+    normalized = seed.lower().strip()
+    return SEED_EXPANSIONS.get(normalized, [normalized])
+
+
 # ─── Helpers ───────────────────────────────────────────────────────────────────
 
 def apply_filters(keywords: list, min_volume: int, max_competition: int, intent_filter: str = None) -> list:
@@ -68,15 +99,27 @@ def apply_filters(keywords: list, min_volume: int, max_competition: int, intent_
 async def fetch_and_enrich(seed: str, mode: str) -> list:
     cache_hash = db.cache_key(mode, {"seed": seed.lower().strip()})
     cached = db.get_cached(cache_hash)
-    if cached is not None:
+    if cached is not None and len(cached) > 0:
         return cached
 
-    raw = await dfs.get_keywords_for_seed(seed)
-    enriched = enrich_keywords(raw)
+    seeds = expand_seed(seed)
+    all_raw = []
+    seen_keywords = set()
+
+    for s in seeds:
+        raw = await dfs.get_keywords_for_seed(s)
+        for item in raw:
+            kw = (item.get("keyword") or "").strip().lower()
+            if kw and kw not in seen_keywords:
+                seen_keywords.add(kw)
+                all_raw.append(item)
+
+    enriched = enrich_keywords(all_raw)
     enriched = normalize_scores(enriched)
     enriched.sort(key=lambda x: x["opportunity_score"], reverse=True)
 
-    db.set_cache(cache_hash, seed, enriched)
+    if enriched:
+        db.set_cache(cache_hash, seed, enriched)
     return enriched
 
 
