@@ -1,6 +1,7 @@
 import os
 import csv
 import io
+import asyncio
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -103,11 +104,18 @@ async def fetch_and_enrich(seed: str, mode: str) -> list:
         return cached
 
     seeds = expand_seed(seed)
+
+    async def fetch_one(s: str) -> list:
+        try:
+            return await dfs.get_keywords_for_seed(s)
+        except Exception:
+            return []
+
+    results_per_seed = await asyncio.gather(*[fetch_one(s) for s in seeds])
+
     all_raw = []
     seen_keywords = set()
-
-    for s in seeds:
-        raw = await dfs.get_keywords_for_seed(s)
+    for raw in results_per_seed:
         for item in raw:
             kw = (item.get("keyword") or "").strip().lower()
             if kw and kw not in seen_keywords:
@@ -133,35 +141,41 @@ async def health():
 
 @app.post("/api/research")
 async def research(req: ResearchRequest):
-    keywords = await fetch_and_enrich(req.seed, "research")
-    filtered = apply_filters(keywords, req.min_volume, req.max_competition, req.intent_filter)
-    db.add_history(req.seed, "Research", len(filtered))
-    return {"keywords": filtered, "total": len(filtered)}
+    try:
+        keywords = await fetch_and_enrich(req.seed, "research")
+        filtered = apply_filters(keywords, req.min_volume, req.max_competition, req.intent_filter)
+        db.add_history(req.seed, "Research", len(filtered))
+        return {"keywords": filtered, "total": len(filtered)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/gaps")
 async def gaps(req: GapRequest):
-    keywords = await fetch_and_enrich(req.seed, "gaps")
-    # Gap = low competition, decent volume, meaningful CPC (indicates commercial value)
-    filtered = apply_filters(keywords, req.min_volume, req.max_competition)
-    filtered = [k for k in filtered if k["cpc"] >= 1.0]  # must have paid value
-    filtered.sort(key=lambda x: x["opportunity_score"], reverse=True)
-    db.add_history(req.seed, "Gap Finder", len(filtered))
-    return {"keywords": filtered, "total": len(filtered)}
+    try:
+        keywords = await fetch_and_enrich(req.seed, "gaps")
+        filtered = apply_filters(keywords, req.min_volume, req.max_competition)
+        filtered = [k for k in filtered if k["cpc"] >= 1.0]
+        filtered.sort(key=lambda x: x["opportunity_score"], reverse=True)
+        db.add_history(req.seed, "Gap Finder", len(filtered))
+        return {"keywords": filtered, "total": len(filtered)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/longtail")
 async def longtail(req: LongTailRequest):
-    keywords = await fetch_and_enrich(req.seed, "longtail")
-    filtered = apply_filters(keywords, req.min_volume, req.max_competition)
-    # Long-tail = keyword with >= min_words words
-    filtered = [k for k in filtered if len(k["keyword"].split()) >= req.min_words]
-    # Sort: long-tail value = specificity (word count) * opportunity score
-    for k in filtered:
-        k["longtail_score"] = round(len(k["keyword"].split()) * k["opportunity_score"], 1)
-    filtered.sort(key=lambda x: x["longtail_score"], reverse=True)
-    db.add_history(req.seed, "Long-tail", len(filtered))
-    return {"keywords": filtered, "total": len(filtered)}
+    try:
+        keywords = await fetch_and_enrich(req.seed, "longtail")
+        filtered = apply_filters(keywords, req.min_volume, req.max_competition)
+        filtered = [k for k in filtered if len(k["keyword"].split()) >= req.min_words]
+        for k in filtered:
+            k["longtail_score"] = round(len(k["keyword"].split()) * k["opportunity_score"], 1)
+        filtered.sort(key=lambda x: x["longtail_score"], reverse=True)
+        db.add_history(req.seed, "Long-tail", len(filtered))
+        return {"keywords": filtered, "total": len(filtered)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/competitor")
