@@ -52,6 +52,12 @@
     .tier-strong{background:rgba(63,185,80,.18);color:#3fb950;border:1px solid rgba(63,185,80,.35)}
     .tier-moderate{background:rgba(210,153,34,.15);color:#d29922;border:1px solid rgba(210,153,34,.3)}
     .tier-weak{background:rgba(139,148,158,.1);color:#8b949e;border:1px solid rgba(139,148,158,.25)}
+    .vol-high{color:var(--green);font-weight:700}
+    .vol-med{color:var(--yellow);font-weight:600}
+    .vol-low{color:var(--muted)}
+    .conf-high{color:var(--green);font-size:10px}
+    .conf-med{color:var(--yellow);font-size:10px}
+    .conf-low{color:var(--muted);font-size:10px}
     .table-wrap{overflow-x:auto}
     table{width:100%;border-collapse:collapse;font-size:13px}
     thead th{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
@@ -191,7 +197,16 @@
               <div class="stat-box"><div class="text-xs" style="color:var(--muted);">Both Sources</div><div class="text-xl font-bold" style="color:var(--green);" x-text="research.results.filter(k=>k.source_count===2).length"></div></div>
               <div class="stat-box"><div class="text-xs" style="color:var(--muted);">Avg Rank</div><div class="text-xl font-bold" x-text="avgRank(research.results)"></div></div>
             </div>
-            <button class="btn btn-ghost btn-sm" @click="openSaveModal('research')">Save List</button>
+            <div class="flex gap-2 items-center">
+              <template x-if="!research.volDone">
+                <button class="btn btn-ghost btn-sm" @click="runVolumeEstimate()" :disabled="research.volLoading">
+                  <span x-show="research.volLoading" class="spinner mr-2" style="width:12px;height:12px;border-width:1.5px;"></span>
+                  <span x-text="research.volLoading ? 'Estimating... (~15s)' : '⚡ Est. Volume (top 50)'"></span>
+                </button>
+              </template>
+              <span x-show="research.volDone" class="text-xs" style="color:var(--green);">✓ Volume estimated</span>
+              <button class="btn btn-ghost btn-sm" @click="openSaveModal('research')">Save List</button>
+            </div>
           </div>
           <div x-data="{selected:[]}" class="card p-0 overflow-hidden">
             <div class="table-wrap">
@@ -205,6 +220,7 @@
                   <th>Intent</th>
                   <th>Signal Tier</th>
                   <th><button class="sort-btn" :class="{active:research.sort==='opportunity_score'}" @click="sortR('opportunity_score')">Raw Score ⇅</button></th>
+                  <template x-if="research.volDone"><th>Est. Volume</th></template>
                   <th></th>
                 </tr></thead>
                 <tbody>
@@ -218,6 +234,12 @@
                       <td><span class="badge" :class="intentClass(kw.intent)" x-text="kw.intent"></span></td>
                       <td><span class="badge" :class="tierClass(kw.frequency,kw.best_rank,kw.source_count)" x-text="tier(kw.frequency,kw.best_rank,kw.source_count)"></span></td>
                       <td><span class="text-xs font-mono" style="color:var(--muted);" x-text="'f:'+kw.frequency+' r:#'+kw.best_rank+' s:'+kw.source_count"></span></td>
+                      <template x-if="research.volDone">
+                        <td>
+                          <span :class="volClass(kw.volume_bracket)" x-text="kw.volume_bracket||'—'"></span>
+                          <span x-show="kw.volume_confidence" :class="'conf-'+kw.volume_confidence" x-text="kw.volume_confidence==='high'?' ●':kw.volume_confidence==='medium'?' ◑':' ○'"></span>
+                        </td>
+                      </template>
                       <td><button class="btn btn-ghost btn-sm" @click="quickSave(kw)">+ Save</button></td>
                     </tr>
                   </template>
@@ -497,7 +519,7 @@ function app() {
     ],
 
     legend: false,
-    research: {seed:'', intentFilter:'All', depth:'standard', loading:false, results:[], sort:'opportunity_score', dir:-1},
+    research: {seed:'', intentFilter:'All', depth:'standard', loading:false, results:[], sort:'opportunity_score', dir:-1, volLoading:false, volDone:false},
     gaps:     {seed:'', depth:'standard', loading:false, results:[], sort:'opportunity_score', dir:-1},
     longtail: {seed:'', minWords:3, depth:'standard', loading:false, results:[], sort:'opportunity_score', dir:-1},
 
@@ -505,7 +527,7 @@ function app() {
 
     async runResearch() {
       if (!this.research.seed.trim()) return;
-      this.research.loading = true; this.research.results = [];
+      this.research.loading = true; this.research.results = []; this.research.volDone = false;
       try {
         const r = await fetch('/api/research', {method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({seed:this.research.seed, intent_filter:this.research.intentFilter, depth:this.research.depth})});
@@ -516,6 +538,36 @@ function app() {
         this.loadHistory();
       } catch(e) { this.showToast(e.message,'error'); }
       this.research.loading = false;
+    },
+
+    async runVolumeEstimate() {
+      this.research.volLoading = true;
+      try {
+        // Send top 50 by opportunity_score
+        const top50 = [...this.research.results]
+          .sort((a,b) => b.opportunity_score - a.opportunity_score)
+          .slice(0, 50);
+        const r = await fetch('/api/volume-estimate', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({keywords: top50})
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || 'Error');
+        // Merge estimates back by keyword string
+        const map = {};
+        for (const kw of d.keywords) map[kw.keyword] = kw;
+        this.research.results = this.research.results.map(kw => ({
+          ...kw, ...(map[kw.keyword] ? {
+            volume_bracket: map[kw.keyword].volume_bracket,
+            volume_confidence: map[kw.keyword].volume_confidence,
+            trends_score: map[kw.keyword].trends_score,
+          } : {})
+        }));
+        this.research.volDone = true;
+        this.showToast('Volume estimates added (top 50)', 'success');
+      } catch(e) { this.showToast(e.message, 'error'); }
+      this.research.volLoading = false;
     },
 
     async runGaps() {
@@ -619,6 +671,13 @@ function app() {
 
     rankClass(r)  { return !r?'rank-low':r<=3?'rank-top':r<=6?'rank-mid':'rank-low'; },
     scoreClass(s) { return s>=70?'score-high':s>=35?'score-med':'score-low'; },
+
+    volClass(bracket) {
+      if (!bracket || bracket === '—') return 'vol-low';
+      if (bracket.includes('>200K') || bracket.includes('50K')) return 'vol-high';
+      if (bracket.includes('10K') || bracket.includes('2K')) return 'vol-med';
+      return 'vol-low';
+    },
 
     tier(freq, rank, sources) {
       // Strong: confirmed by both sources AND (high freq OR top rank)

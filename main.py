@@ -53,6 +53,9 @@ class AddToListRequest(BaseModel):
     list_id: int
     keywords: list[dict]
 
+class VolumeEstimateRequest(BaseModel):
+    keywords: list[dict]
+
 
 # ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -175,6 +178,22 @@ async def export_list(list_id: int):
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=ssdi-list-{list_id}.csv"},
     )
+
+
+@app.post("/api/volume-estimate")
+async def volume_estimate(req: VolumeEstimateRequest):
+    try:
+        import volume as vol
+        if not req.keywords:
+            raise HTTPException(status_code=400, detail="No keywords provided")
+        # Cap at 50 — Trends batching takes ~1s/batch, 50 kws ≈ 13 batches ≈ 15s
+        kws = req.keywords[:50]
+        enriched = await asyncio.to_thread(vol.estimate_volumes, kws)
+        return {"keywords": enriched}
+    except KeyError:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not set in environment")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/", response_class=HTMLResponse)
