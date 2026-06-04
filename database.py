@@ -2,10 +2,9 @@ import sqlite3
 import json
 import hashlib
 from datetime import datetime, timedelta
-from pathlib import Path
 
 DB_PATH = "ssdihunter.db"
-CACHE_TTL_HOURS = 24
+CACHE_TTL_HOURS = 12
 
 
 def get_conn():
@@ -45,9 +44,11 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             list_id INTEGER NOT NULL REFERENCES saved_lists(id) ON DELETE CASCADE,
             keyword TEXT NOT NULL,
-            search_volume INTEGER,
-            cpc REAL,
-            competition_index INTEGER,
+            google_rank INTEGER,
+            ddg_rank INTEGER,
+            best_rank INTEGER,
+            source_count INTEGER,
+            frequency INTEGER,
             intent TEXT,
             opportunity_score REAL
         );
@@ -136,9 +137,20 @@ def add_keywords_to_list(list_id: int, keywords: list):
     conn = get_conn()
     conn.executemany(
         """INSERT INTO list_keywords
-           (list_id, keyword, search_volume, cpc, competition_index, intent, opportunity_score)
-           VALUES (:list_id, :keyword, :search_volume, :cpc, :competition_index, :intent, :opportunity_score)""",
-        [{"list_id": list_id, **kw} for kw in keywords]
+           (list_id, keyword, google_rank, ddg_rank, best_rank, source_count,
+            frequency, intent, opportunity_score)
+           VALUES (:list_id, :keyword, :google_rank, :ddg_rank, :best_rank,
+                   :source_count, :frequency, :intent, :opportunity_score)""",
+        [{"list_id": list_id,
+          "google_rank":      kw.get("google_rank"),
+          "ddg_rank":         kw.get("ddg_rank"),
+          "best_rank":        kw.get("best_rank"),
+          "source_count":     kw.get("source_count", 1),
+          "frequency":        kw.get("frequency", 1),
+          "intent":           kw.get("intent", "General SSDI"),
+          "opportunity_score": kw.get("opportunity_score", 0),
+          "keyword":          kw.get("keyword", ""),
+        } for kw in keywords]
     )
     conn.commit()
     conn.close()

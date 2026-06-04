@@ -10,12 +10,10 @@ load_dotenv()
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import database as db
-import dataforseo as dfs
-from classifier import enrich_keywords, normalize_scores, is_ssdi_relevant
+import autocomplete as ac
 
 
 @asynccontextmanager
@@ -31,20 +29,21 @@ app = FastAPI(title="SSDIHunter", lifespan=lifespan)
 
 class ResearchRequest(BaseModel):
     seed: str
-    min_volume: int = 50
-    max_competition: int = 100
-    intent_filter: Optional[str] = None  # None = all
+    min_frequency: int = 1
+    max_rank: int = 10
+    intent_filter: Optional[str] = None
+    depth: str = "standard"
 
 class GapRequest(BaseModel):
     seed: str
-    min_volume: int = 50
-    max_competition: int = 40  # tight competition ceiling for gaps
+    min_frequency: int = 1
+    max_rank: int = 5
+    depth: str = "standard"
 
 class LongTailRequest(BaseModel):
     seed: str
     min_words: int = 3
-    min_volume: int = 10
-    max_competition: int = 100
+    depth: str = "standard"
 
 class SaveRequest(BaseModel):
     list_name: str
@@ -55,100 +54,41 @@ class AddToListRequest(BaseModel):
     keywords: list[dict]
 
 
-# ─── Seed expansion ────────────────────────────────────────────────────────────
-# Google Ads suppresses broad "disability" as a sensitive category.
-# These expansion maps bypass that by fanning out to specific seeds that work,
-# then aggregating and deduplicating the combined results.
-
-SEED_EXPANSIONS = {
-    "disability": [
-        "ssdi", "ssi", "social security disability", "disability claim",
-        "disability benefits", "disability appeal", "disability attorney",
-        "disability application", "disability eligibility", "disability denial",
-    ],
-    "disabled": [
-        "ssdi", "ssi", "social security disability", "disability benefits",
-        "disability claim", "disabled benefits",
-    ],
-    "social security": [
-        "ssdi", "ssi", "social security disability", "social security benefits",
-        "social security appeal", "social security claim",
-    ],
-    "benefits": [
-        "ssdi benefits", "ssi benefits", "disability benefits",
-        "social security disability benefits",
-    ],
-}
-
-def expand_seed(seed: str) -> list[str]:
-    """Return list of seeds to query. Expands suppressed broad terms."""
-    normalized = seed.lower().strip()
-    return SEED_EXPANSIONS.get(normalized, [normalized])
-
-
 # ─── Helpers ───────────────────────────────────────────────────────────────────
 
-def apply_filters(keywords: list, min_volume: int, max_competition: int, intent_filter: str = None) -> list:
+def apply_filters(keywords: list, max_rank: int, min_frequency: int,
+                  intent_filter: str = None) -> list:
     out = [k for k in keywords
-           if k["search_volume"] >= min_volume
-           and k["competition_index"] <= max_competition]
+           if k["best_rank"] <= max_rank
+           and k["frequency"] >= min_frequency]
     if intent_filter and intent_filter != "All":
         out = [k for k in out if k["intent"] == intent_filter]
     return out
 
 
-async def fetch_and_enrich(seed: str, mode: str) -> list:
-    cache_hash = db.cache_key(mode, {"seed": seed.lower().strip()})
+async def fetch_and_enrich(seed: str, depth: str) -> list:
+    cache_hash = db.cache_key("ac", {"seed": seed.lower().strip(), "depth": depth})
     cached = db.get_cached(cache_hash)
-    if cached is not None and len(cached) > 0:
+    if cached:
         return cached
-
-    seeds = expand_seed(seed)
-    errors = []
-
-    async def fetch_one(s: str) -> list:
-        try:
-            return await dfs.get_keywords_for_seed(s)
-        except Exception as e:
-            errors.append(f"{s}: {e}")
-            return []
-
-    results_per_seed = await asyncio.gather(*[fetch_one(s) for s in seeds])
-
-    all_raw = []
-    seen_keywords = set()
-    for raw in results_per_seed:
-        for item in raw:
-            kw = (item.get("keyword") or "").strip().lower()
-            if kw and kw not in seen_keywords:
-                seen_keywords.add(kw)
-                all_raw.append(item)
-
-    if not all_raw and errors:
-        raise Exception("DataForSEO API errors: " + " | ".join(errors))
-
-    enriched = enrich_keywords(all_raw)
-    enriched = normalize_scores(enriched)
-    enriched.sort(key=lambda x: x["opportunity_score"], reverse=True)
-
-    if enriched:
-        db.set_cache(cache_hash, seed, enriched)
-    return enriched
+    results = await ac.mine(seed, depth)
+    if results:
+        db.set_cache(cache_hash, seed, results)
+    return results
 
 
-# ─── API routes ────────────────────────────────────────────────────────────────
+# ─── Routes ────────────────────────────────────────────────────────────────────
 
 @app.get("/api/health")
 async def health():
-    creds_ok = await dfs.verify_credentials()
-    return {"status": "ok", "dataforseo": creds_ok}
+    return {"status": "ok", "engine": "autocomplete"}
 
 
 @app.post("/api/research")
 async def research(req: ResearchRequest):
     try:
-        keywords = await fetch_and_enrich(req.seed, "research")
-        filtered = apply_filters(keywords, req.min_volume, req.max_competition, req.intent_filter)
+        keywords = await fetch_and_enrich(req.seed, req.depth)
+        filtered = apply_filters(keywords, req.max_rank, req.min_frequency, req.intent_filter)
         db.add_history(req.seed, "Research", len(filtered))
         return {"keywords": filtered, "total": len(filtered)}
     except Exception as e:
@@ -158,9 +98,12 @@ async def research(req: ResearchRequest):
 @app.post("/api/gaps")
 async def gaps(req: GapRequest):
     try:
-        keywords = await fetch_and_enrich(req.seed, "gaps")
-        filtered = apply_filters(keywords, req.min_volume, req.max_competition)
-        filtered = [k for k in filtered if k["cpc"] >= 1.0]
+        keywords = await fetch_and_enrich(req.seed, req.depth)
+        # Gaps: confirmed by BOTH sources but low frequency = real demand, underexploited
+        filtered = [k for k in keywords
+                    if k["source_count"] == 2
+                    and k["best_rank"] <= req.max_rank
+                    and k["frequency"] <= 4]
         filtered.sort(key=lambda x: x["opportunity_score"], reverse=True)
         db.add_history(req.seed, "Gap Finder", len(filtered))
         return {"keywords": filtered, "total": len(filtered)}
@@ -171,9 +114,8 @@ async def gaps(req: GapRequest):
 @app.post("/api/longtail")
 async def longtail(req: LongTailRequest):
     try:
-        keywords = await fetch_and_enrich(req.seed, "longtail")
-        filtered = apply_filters(keywords, req.min_volume, req.max_competition)
-        filtered = [k for k in filtered if len(k["keyword"].split()) >= req.min_words]
+        keywords = await fetch_and_enrich(req.seed, req.depth)
+        filtered = [k for k in keywords if len(k["keyword"].split()) >= req.min_words]
         for k in filtered:
             k["longtail_score"] = round(len(k["keyword"].split()) * k["opportunity_score"], 1)
         filtered.sort(key=lambda x: x["longtail_score"], reverse=True)
@@ -181,23 +123,6 @@ async def longtail(req: LongTailRequest):
         return {"keywords": filtered, "total": len(filtered)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/competitor")
-async def competitor(domain: str = Query(..., description="Competitor domain e.g. allsup.com")):
-    cache_hash = db.cache_key("competitor", {"domain": domain.lower().strip()})
-    cached = db.get_cached(cache_hash)
-    if cached is not None:
-        db.add_history(domain, "Competitor", len(cached))
-        return {"keywords": cached, "total": len(cached)}
-
-    raw = await dfs.get_keywords_for_site(domain)
-    enriched = enrich_keywords(raw)
-    enriched = normalize_scores(enriched)
-    enriched.sort(key=lambda x: x["opportunity_score"], reverse=True)
-    db.set_cache(cache_hash, domain, enriched)
-    db.add_history(domain, "Competitor", len(enriched))
-    return {"keywords": enriched, "total": len(enriched)}
 
 
 @app.get("/api/history")
@@ -212,8 +137,7 @@ async def get_lists():
 
 @app.get("/api/lists/{list_id}")
 async def get_list(list_id: int):
-    keywords = db.get_list_keywords(list_id)
-    return {"keywords": keywords}
+    return {"keywords": db.get_list_keywords(list_id)}
 
 
 @app.post("/api/lists")
@@ -221,12 +145,6 @@ async def create_list(req: SaveRequest):
     list_id = db.create_list(req.list_name)
     db.add_keywords_to_list(list_id, req.keywords)
     return {"id": list_id, "name": req.list_name}
-
-
-@app.post("/api/lists/{list_id}/keywords")
-async def add_to_list(list_id: int, req: AddToListRequest):
-    db.add_keywords_to_list(list_id, req.keywords)
-    return {"ok": True}
 
 
 @app.delete("/api/lists/{list_id}")
@@ -245,10 +163,12 @@ async def delete_keyword(keyword_id: int):
 async def export_list(list_id: int):
     keywords = db.get_list_keywords(list_id)
     output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=["keyword","search_volume","cpc","competition_index","intent","opportunity_score"])
+    fields = ["keyword", "google_rank", "ddg_rank", "best_rank",
+              "source_count", "frequency", "intent", "opportunity_score"]
+    writer = csv.DictWriter(output, fieldnames=fields)
     writer.writeheader()
     for kw in keywords:
-        writer.writerow({k: kw.get(k, "") for k in writer.fieldnames})
+        writer.writerow({f: kw.get(f, "") for f in fields})
     output.seek(0)
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -256,8 +176,6 @@ async def export_list(list_id: int):
         headers={"Content-Disposition": f"attachment; filename=ssdi-list-{list_id}.csv"},
     )
 
-
-# ─── Serve frontend ────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
