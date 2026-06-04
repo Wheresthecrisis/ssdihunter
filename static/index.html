@@ -97,6 +97,35 @@
         </div>
       </template>
     </nav>
+    <!-- Legend -->
+    <div class="border-t text-xs" style="border-color:var(--border);">
+      <button class="w-full flex items-center justify-between px-4 py-2.5 text-left" style="color:var(--muted);" @click="legend=!legend">
+        <span class="font-semibold uppercase tracking-wider" style="font-size:10px;">Metric Legend</span>
+        <span x-text="legend?'▲':'▼'" style="font-size:9px;"></span>
+      </button>
+      <div x-show="legend" class="px-4 pb-3 space-y-3" style="color:var(--muted);">
+        <div>
+          <div class="font-semibold mb-1" style="color:var(--text);font-size:11px;">Rank (#1–#10)</div>
+          <div style="line-height:1.5;">Position in autocomplete dropdown. Google orders these by predicted CTR from its internal volume data — <span style="color:var(--green);">#1–3</span> = high demand, <span style="color:var(--yellow);">#4–6</span> = moderate, <span style="color:var(--muted);">#7–10</span> = lower.</div>
+        </div>
+        <div>
+          <div class="font-semibold mb-1" style="color:var(--text);font-size:11px;">Frequency</div>
+          <div style="line-height:1.5;">How many of our ~53 query variations returned this keyword. Higher = Google keeps volunteering it across many searches = stronger underlying demand signal.</div>
+        </div>
+        <div>
+          <div class="font-semibold mb-1" style="color:var(--text);font-size:11px;">Signal Tier</div>
+          <div class="space-y-1" style="line-height:1.5;">
+            <div><span class="badge tier-strong" style="font-size:10px;">Strong</span> — Both sources confirmed + high freq or top rank</div>
+            <div><span class="badge tier-moderate" style="font-size:10px;">Moderate</span> — Both sources, or solid single-source signal</div>
+            <div><span class="badge tier-weak" style="font-size:10px;">Weak</span> — Low confidence, single source, low freq</div>
+          </div>
+        </div>
+        <div>
+          <div class="font-semibold mb-1" style="color:var(--text);font-size:11px;">Raw Score (f · r · s)</div>
+          <div style="line-height:1.5;"><span style="color:var(--text);">f</span> = frequency &nbsp;<span style="color:var(--text);">r</span> = best rank &nbsp;<span style="color:var(--text);">s</span> = source count. Relative signal strength — not absolute search volume.</div>
+        </div>
+      </div>
+    </div>
     <div class="p-3 border-t text-xs" style="border-color:var(--border);color:var(--muted);">
       <div class="flex items-center gap-2">
         <span class="w-2 h-2 rounded-full bg-green-500"></span>
@@ -243,7 +272,15 @@
             <button class="btn btn-ghost btn-sm" @click="openSaveModal('gaps')">Save All</button>
           </div>
           <div class="card p-0 overflow-hidden"><div class="table-wrap"><table>
-            <thead><tr><th>Keyword</th><th>Rank</th><th>Frequency</th><th>Intent</th><th>Signal Tier</th><th>Raw Score</th><th></th></tr></thead>
+            <thead><tr>
+              <th>Keyword</th>
+              <th><button class="sort-btn" :class="{active:gaps.sort==='best_rank'}" @click="sortTable('gaps','best_rank')">Rank ⇅</button></th>
+              <th><button class="sort-btn" :class="{active:gaps.sort==='frequency'}" @click="sortTable('gaps','frequency')">Frequency ⇅</button></th>
+              <th>Intent</th>
+              <th>Signal Tier</th>
+              <th><button class="sort-btn" :class="{active:gaps.sort==='opportunity_score'}" @click="sortTable('gaps','opportunity_score')">Raw Score ⇅</button></th>
+              <th></th>
+            </tr></thead>
             <tbody>
               <template x-for="(kw,i) in gaps.results" :key="i">
                 <tr>
@@ -308,7 +345,16 @@
             <button class="btn btn-ghost btn-sm" @click="openSaveModal('longtail')">Save All</button>
           </div>
           <div class="card p-0 overflow-hidden"><div class="table-wrap"><table>
-            <thead><tr><th>Keyword</th><th>Words</th><th>Rank</th><th>Sources</th><th>Intent</th><th>Signal Tier</th><th>Raw Score</th><th></th></tr></thead>
+            <thead><tr>
+              <th>Keyword</th>
+              <th>Words</th>
+              <th><button class="sort-btn" :class="{active:longtail.sort==='best_rank'}" @click="sortTable('longtail','best_rank')">Rank ⇅</button></th>
+              <th>Sources</th>
+              <th>Intent</th>
+              <th>Signal Tier</th>
+              <th><button class="sort-btn" :class="{active:longtail.sort==='opportunity_score'}" @click="sortTable('longtail','opportunity_score')">Raw Score ⇅</button></th>
+              <th></th>
+            </tr></thead>
             <tbody>
               <template x-for="(kw,i) in longtail.results" :key="i">
                 <tr>
@@ -450,9 +496,10 @@ function app() {
       {id:'history',   label:'History',          icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="12 8 12 12 14 14"/><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/></svg>'},
     ],
 
+    legend: false,
     research: {seed:'', intentFilter:'All', depth:'standard', loading:false, results:[], sort:'opportunity_score', dir:-1},
-    gaps:     {seed:'', depth:'standard', loading:false, results:[]},
-    longtail: {seed:'', minWords:3, depth:'standard', loading:false, results:[]},
+    gaps:     {seed:'', depth:'standard', loading:false, results:[], sort:'opportunity_score', dir:-1},
+    longtail: {seed:'', minWords:3, depth:'standard', loading:false, results:[], sort:'opportunity_score', dir:-1},
 
     async init() { this.loadHistory(); this.loadLists(); },
 
@@ -547,10 +594,12 @@ function app() {
       else this.research.seed=h.seed_term;
     },
 
-    sortR(field) {
-      if(this.research.sort===field) this.research.dir*=-1;
-      else { this.research.sort=field; this.research.dir=-1; }
-      this.research.results.sort((a,b)=>(a[field]-b[field])*this.research.dir);
+    sortR(field) { this.sortTable('research', field); },
+    sortTable(tbl, field) {
+      const t = this[tbl];
+      if (t.sort === field) t.dir *= -1;
+      else { t.sort = field; t.dir = -1; }
+      t.results.sort((a, b) => (a[field] - b[field]) * t.dir);
     },
 
     showToast(msg,type='success') {
