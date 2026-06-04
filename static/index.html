@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SSDIHunter</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --card:     #1c2128;
+      --border:   #30363d;
+      --text:     #e6edf3;
+      --muted:    #8b949e;
+      --accent:   #7c3aed;
+      --accent2:  #9f67ff;
+      --green:    #3fb950;
+      --yellow:   #d29922;
+      --red:      #f85149;
+      --blue:     #388bfd;
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--surface); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .sidebar-link { display:flex; align-items:center; gap:10px; padding:10px 16px; border-radius:8px; cursor:pointer; transition:background 0.15s; color: var(--muted); font-size:14px; font-weight:500; }
+    .sidebar-link:hover { background: rgba(124,58,237,0.12); color: var(--text); }
+    .sidebar-link.active { background: rgba(124,58,237,0.2); color: var(--accent2); }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+    .input { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius:7px; padding:9px 13px; font-size:14px; outline:none; transition: border-color 0.15s; }
+    .input:focus { border-color: var(--accent); }
+    .input::placeholder { color: var(--muted); }
+    .btn { padding:9px 18px; border-radius:7px; font-size:14px; font-weight:600; cursor:pointer; transition:all 0.15s; border:none; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent2); }
+    .btn-primary:disabled { opacity:0.5; cursor:not-allowed; }
+    .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--text); }
+    .btn-sm { padding:5px 12px; font-size:12px; border-radius:5px; }
+    .badge { display:inline-flex; align-items:center; padding:2px 9px; border-radius:99px; font-size:11px; font-weight:600; }
+    .comp-low  { background: rgba(63,185,80,0.15);  color: var(--green); }
+    .comp-med  { background: rgba(210,153,34,0.15); color: var(--yellow); }
+    .comp-high { background: rgba(248,81,73,0.15);  color: var(--red); }
+    .intent-new   { background:rgba(56,139,253,0.15); color:#79c0ff; }
+    .intent-appeal { background:rgba(248,81,73,0.15); color:#ffa198; }
+    .intent-denial { background:rgba(248,81,73,0.18); color:#ff7b72; }
+    .intent-rep    { background:rgba(124,58,237,0.2); color:#c084fc; }
+    .intent-elig   { background:rgba(63,185,80,0.15); color:#56d364; }
+    .intent-benefit { background:rgba(210,153,34,0.15); color:#e3b341; }
+    .intent-cond   { background:rgba(56,189,248,0.15); color:#67e8f9; }
+    .intent-gen    { background:rgba(139,148,158,0.15); color:#8b949e; }
+    .score-high  { color: var(--green); font-weight:700; }
+    .score-med   { color: var(--yellow); font-weight:600; }
+    .score-low   { color: var(--muted); }
+    .table-wrap { overflow-x: auto; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    thead th { text-align:left; padding:10px 12px; border-bottom:1px solid var(--border); color: var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.05em; white-space:nowrap; }
+    tbody tr { border-bottom:1px solid rgba(48,54,61,0.5); transition:background 0.1s; }
+    tbody tr:hover { background: rgba(124,58,237,0.06); }
+    tbody td { padding:10px 12px; vertical-align:middle; }
+    .sort-btn { background:none; border:none; cursor:pointer; color:var(--muted); padding:0 4px; font-size:11px; }
+    .sort-btn.active { color: var(--accent2); }
+    .spinner { display:inline-block; width:18px; height:18px; border:2px solid var(--border); border-top-color: var(--accent); border-radius:50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .toast { position:fixed; bottom:24px; right:24px; background: var(--card); border:1px solid var(--border); border-radius:9px; padding:12px 18px; font-size:13px; z-index:999; box-shadow:0 8px 32px rgba(0,0,0,0.4); }
+    .toast.success { border-color: var(--green); }
+    .toast.error { border-color: var(--red); }
+    select.input option { background: var(--surface); }
+    .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius:8px; padding:14px 18px; }
+    .vol-bar { height:4px; background: var(--border); border-radius:2px; margin-top:4px; }
+    .vol-bar-fill { height:4px; background: var(--accent); border-radius:2px; }
+  </style>
+</head>
+<body x-data="app()" x-init="init()" x-cloak>
+
+<!-- Toast -->
+<div x-show="toast.show" x-transition class="toast" :class="toast.type">
+  <span x-text="toast.msg"></span>
+</div>
+
+<!-- Layout -->
+<div class="flex h-screen overflow-hidden">
+
+  <!-- Sidebar -->
+  <aside class="w-56 flex-shrink-0 flex flex-col border-r" style="background:var(--surface);border-color:var(--border);">
+    <div class="px-5 py-5 border-b" style="border-color:var(--border);">
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:var(--accent);">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        </div>
+        <span class="font-bold text-base tracking-tight">SSDIHunter</span>
+      </div>
+      <p class="text-xs mt-1" style="color:var(--muted);">Quikaid Internal Tool</p>
+    </div>
+
+    <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
+      <template x-for="item in nav" :key="item.id">
+        <div class="sidebar-link" :class="{active: view===item.id}" @click="view=item.id">
+          <span x-html="item.icon"></span>
+          <span x-text="item.label"></span>
+        </div>
+      </template>
+    </nav>
+
+    <div class="p-3 border-t text-xs" style="border-color:var(--border);color:var(--muted);">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="w-2 h-2 rounded-full" :class="apiStatus ? 'bg-green-500' : 'bg-red-500'"></span>
+        <span x-text="apiStatus ? 'DataForSEO OK' : 'API Error'"></span>
+      </div>
+      <div x-show="cacheHits > 0">Cache hits: <span x-text="cacheHits"></span></div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 overflow-y-auto p-6">
+
+    <!-- ── RESEARCH ──────────────────────────────────────────────────────── -->
+    <div x-show="view==='research'">
+      <h1 class="text-xl font-bold mb-1">Keyword Research</h1>
+      <p class="text-sm mb-5" style="color:var(--muted);">Expand any seed term into SSDI/SSI keywords with volume, CPC, and intent data.</p>
+
+      <div class="card mb-5">
+        <div class="flex flex-wrap gap-3 items-end">
+          <div class="flex-1 min-w-48">
+            <label class="block text-xs mb-1.5" style="color:var(--muted);">Seed Keyword</label>
+            <input class="input w-full" x-model="research.seed" placeholder="e.g. ssdi appeal" @keydown.enter="runResearch()" />
+          </div>
+          <div class="w-32">
+            <label class="block text-xs mb-1.5" style="color:var(--muted);">Min Volume</label>
+            <input type="number" class="input w-full" x-model.number="research.minVolume" min="0" />
+          </div>
+          <div class="w-36">
+            <label class="block text-xs mb-1.5" style="color:var(--muted);">Max Competition (0–100)</label>
+            <input type="number" class="input w-full" x-model.number="research.maxComp" min="0" max="100" />
+          </div>
+          <div class="w-44">
+            <label class="block text-xs mb-1.5" style="color:var(--muted);">Intent Filter</label>
+            <select class="input w-full" x-model="research.intentFilter">
+              <option>All</option>
+              <option>New Application</option>
+              <option>Appeal / ALJ</option>
+              <option>Denial Recovery</option>
+              <option>Condition-Specific</option>
+              <option>Eligibility</option>
+              <option>Rep / Attorney</option>
+              <option>Benefits / Amount</option>
+              <option>General SSDI</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" @click="runResearch()" :disabled="research.loading">
+            <span x-show="research.loading" class="spinner mr-2"></span>
+            <span x-text="research.loading ? 'Searching…' : 'Search'"></span>
+          </button>
+        </div>
+      </div>
+
+      <template x-if="research.results.length">
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex gap-4">
+              <div class="stat-box">
+                <div class="text-xs" style="color:var(--muted);">Keywords Found</div>
+                <div class="text-xl font-bold" x-text="research.results.length"></div>
+              </div>
+              <div class="stat-box">
+                <div class="text-xs" style="color:var(--muted);">Avg CPC</div>
+                <div class="text-xl font-bold" x-text="'$' + avgCPC(research.results)"></div>
+              </div>
+              <div class="stat-box">
+                <div class="text-xs" style="color:var(--muted);">Avg Competition</div>
+                <div class="text-xl font-bold" x-text="avgComp(research.results)"></div>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button class="btn btn-ghost btn-sm" @click="openSaveModal('research')">Save List</button>
+            </div>
+          </div>
+          <div x-data="{selected:[]}" class="card p-0 overflow-hidden">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th><input type="checkbox" @change="e => e.target.checked ? selected=research.results.map((_,i)=>i) : selected=[]" /></th>
+                    <th>Keyword</th>
+                    <th><button class="sort-btn" :class="{active:research.sort==='search_volume'}" @click="sortResearch('search_volume')">Volume ⇅</button></th>
+                    <th><button class="sort-btn" :class="{active:research.sort==='cpc'}" @click="sortResearch('cpc')">CPC ⇅</button></th>
+                    <th><button class="sort-btn" :class="{active:research.sort==='competition_index'}" @click="sortResearch('competition_index')">Competition ⇅</button></th>
+                    <th>Intent</th>
+                    <th><button class="sort-btn" :class="{active:research.sort==='opportunity_score'}" @click="sortResearch('opportunity_score')">Opp. Score ⇅</button></th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(kw, i) in research.results" :key="i">
+                    <tr>
+                      <td><input type="checkbox" :value="i" x-model="selected" /></td>
+                      <td class="font-medium" x-text="kw.keyword"></td>
+                      <td x-text="fmtVol(kw.search_volume)"></td>
+                      <td x-text="'$' + kw.cpc.toFixed(2)"></td>
+                      <td><span class="badge" :class="compClass(kw.competition_index)" x-text="compLabel(kw.competition_index) + ' (' + kw.competition_index + ')'"></span></td>
+                      <td><span class="badge" :class="intentClass(kw.intent)" x-text="kw.intent"></span></td>
+                      <td><span :class="scoreClass(kw.opportunity_score)" x-text="kw.opportunity_score"></span></td>
+                      <td>
+                        <button class="btn btn-ghost btn-sm" @click="quickSave(kw)">+ Save</button>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+            <div x-show="selected.length" class="flex items-center gap-3 px-4 py-3 border-t" style="border-color:var(--border);">
+              <span class="text-sm" style="color:var(--muted);"><span x-text="selected.length"></span> selected</span>
+              <button class="btn btn-primary btn-sm" @click="saveSelected(selected, research.results, 'research')">Save Selected to List</button>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <div x-show="!research.results.length && !research.loading" class="text-center py-16" style="color:var(--muted);">
+        <svg class="mx-auto mb-3 opacity-30" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <p>Enter a seed keyword and press Search</p>
+      </div>
+    </div>
+
+    <!-- ── GAP FINDER ─────────────────────────────────────────────────────── -->
+    <div x-show="view==='gaps'">
+      <h1 class="text-xl font-bold mb-1">Gap Finder</h1>
+      <p class="text-sm mb-5" style="color:var(--muted);">Surface SSDI keywords with low advertiser competition and commercial value — terms your competitors are missing.</p>
+
+      <div class="card mb-5">
+        <div class="flex flex-wrap gap-3 items-end">
+          <div class="flex-1 min-w-48">
+            <label class="block text-xs mb-1.5" style="color:var(--muted);">Seed Keyword</label>
+            <input class="input w-full" x-model="gaps.seed" placeholder="e.g. social security disability" @keydown.enter="runGaps()" />
+          </div>
+          <div class="w-32">
+            <label class="block text-xs mb-1.5" style="color:var(--muted);">Min Volume</label>
+            <input type="number" class="input w-full" x-model.number="gaps.minVolume" min="0" />
+          </div>
+          <div class="w-36">
+            <label class="block text-xs mb-1.5" style="color:var(--muted);">Max Competition (0–100)</label>
+            <input type="number" class="input w-full" x-model.number="gaps.maxComp" min="0" max="100" />
+          </div>
+          <button class="btn btn-primary" @click="runGaps()" :disabled="gaps.loading">
+            <span x-show="gaps.loading" class="spinner mr-2"></span>
+            <span x-text="gaps.loading ? 'Scanning…' : 'Find Gaps'"></span>
+          </button>
+        </div>
+        <p class="text-xs mt-3" style="color:var(--muted);">Only shows keywords with ≥$1.00 CPC (confirms commercial intent). Lower the competition ceiling to find more overlooked terms.</p>
+      </div>
+
+      <template x-if="gaps.results.length">
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-sm" style="color:var(--muted);"><span x-text="gaps.results.length" class="font-bold" style="color:var(--green);"></span> gap opportunities found</p>
+            <button class="btn btn-ghost btn-sm" @click="openSaveModal('gaps')">Save All to List</button>
+          </div>
+          <div class="card p-0 overflow-hidden">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Keyword</th>
+                    <th>Volume</th>
+                    <th>CPC</th>
+                    <th>Competition</th>
+                    <th>Intent</th>
+                    <th>Opp. Score</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(kw, i) in gaps.results" :key="i">
+                    <tr>
+                      <td class="font-medium" x-text="kw.keyword"></td>
+                      <td x-text="fmtVol(kw.search_volume)"></td>
+                      <td x-text="'$' + kw.cpc.toFixed(2)"></td>
+                      <td><span class="badge" :class="compClass(kw.competition_index)" x-text="compLabel(kw.competition_index) + ' (' + kw.competition_index + ')'"></span></td>
+                      <td><span class="badge" :class="intentClass(kw.intent)" x-text="kw.intent"></span></td>
+                      <td><span :class="scoreClass(kw.opportunity_score)" x-text="kw.opportunity_score"></span></td>
+                      <td><button class="btn btn-ghost btn-sm" @click="quickSave(kw)">+ Save</button></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <div x-show="!gaps.results.length && !gaps.loading" class="text-center py-16" style="color:var(--muted);">
+        <svg class="mx-auto mb-3 opacity-30" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M22 2 12 12"/><path d="m15 2 7 0 0 7"/></svg>
+        <p>Enter a seed and click Find Gaps</p>
+      </div>
+    </div>
+
+    <!-- ── LONG-TAIL ───────────────────────────────────────────────────────── -->
+    <div x-show="view==='longtail'">
+      <h1 class="text-xl font-bold mb-1">Long-tail Mining</h1>
+      <p class="text-sm mb-5" style="color:var(--muted);">Multi-word SSDI phrases with high conversion specificity. These are the terms claimants type when they're ready to act.</p>
+
+      <div class="card mb-5">
+        <div class="flex flex-wrap gap-3 items-end">
+          <div class="flex-1 min-w-48">
+            <label class="block text-xs mb-1.5" style="color:var(--muted);">Seed Keyword</label>
+            <input class="input w-full" x-model="longtail.seed" placeholder="e.g. ssdi denied" @keydown.enter="runLongtail()" />
+          </div>
+          <div class="w-28">
+            <label class="block text-xs mb-1.5" style="color:var(--muted);">Min Words</label>
+            <select class="input w-full" x-model.number="longtail.minWords">
+              <option value="3">3+ words</option>
+              <option value="4">4+ words</option>
+              <option value="5">5+ words</option>
+            </select>
+          </div>
+          <div class="w-32">
+            <label class="block text-xs mb-1.5" style="color:var(--muted);">Min Volume</label>
+            <input type="number" class="input w-full" x-model.number="longtail.minVolume" min="0" />
+          </div>
+          <button class="btn btn-primary" @click="runLongtail()" :disabled="longtail.loading">
+            <span x-show="longtail.loading" class="spinner mr-2"></span>
+            <span x-text="longtail.loading ? 'Mining…' : 'Mine Long-tails'"></span>
+          </button>
+        </div>
+      </div>
+
+      <template x-if="longtail.results.length">
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-sm" style="color:var(--muted);"><span x-text="longtail.results.length" class="font-bold" style="color:var(--accent2);"></span> long-tail phrases found</p>
+            <button class="btn btn-ghost btn-sm" @click="openSaveModal('longtail')">Save All to List</button>
+          </div>
+          <div class="card p-0 overflow-hidden">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Keyword</th>
+                    <th>Words</th>
+                    <th>Volume</th>
+                    <th>CPC</th>
+                    <th>Competition</th>
+                    <th>Intent</th>
+                    <th>LT Score</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(kw, i) in longtail.results" :key="i">
+                    <tr>
+                      <td class="font-medium" x-text="kw.keyword"></td>
+                      <td x-text="kw.keyword.split(' ').length"></td>
+                      <td x-text="fmtVol(kw.search_volume)"></td>
+                      <td x-text="'$' + kw.cpc.toFixed(2)"></td>
+                      <td><span class="badge" :class="compClass(kw.competition_index)" x-text="compLabel(kw.competition_index)"></span></td>
+                      <td><span class="badge" :class="intentClass(kw.intent)" x-text="kw.intent"></span></td>
+                      <td><span :class="scoreClass(kw.longtail_score)" x-text="kw.longtail_score"></span></td>
+                      <td><button class="btn btn-ghost btn-sm" @click="quickSave(kw)">+ Save</button></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <div x-show="!longtail.results.length && !longtail.loading" class="text-center py-16" style="color:var(--muted);">
+        <svg class="mx-auto mb-3 opacity-30" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3h18M3 9h18M3 15h12M3 21h8"/></svg>
+        <p>Enter a seed and click Mine Long-tails</p>
+      </div>
+    </div>
+
+    <!-- ── COMPETITOR ──────────────────────────────────────────────────────── -->
+    <div x-show="view==='competitor'">
+      <h1 class="text-xl font-bold mb-1">Competitor Spy</h1>
+      <p class="text-sm mb-5" style="color:var(--muted);">Enter a competitor domain to see which SSDI keywords they're targeting in paid search.</p>
+
+      <div class="card mb-5">
+        <div class="flex flex-wrap gap-3 items-end">
+          <div class="flex-1 min-w-48">
+            <label class="block text-xs mb-1.5" style="color:var(--muted);">Competitor Domain</label>
+            <input class="input w-full" x-model="competitor.domain" placeholder="e.g. allsup.com" @keydown.enter="runCompetitor()" />
+          </div>
+          <button class="btn btn-primary" @click="runCompetitor()" :disabled="competitor.loading">
+            <span x-show="competitor.loading" class="spinner mr-2"></span>
+            <span x-text="competitor.loading ? 'Fetching…' : 'Spy'"></span>
+          </button>
+        </div>
+        <p class="text-xs mt-3" style="color:var(--muted);">Results are filtered to SSDI/SSI relevant terms only. Try: allsup.com, disability-benefits-help.org, nosscr.org</p>
+      </div>
+
+      <template x-if="competitor.results.length">
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-sm" style="color:var(--muted);"><span x-text="competitor.results.length" class="font-bold" style="color:var(--blue);"></span> SSDI keywords from <span x-text="competitor.domain"></span></p>
+            <button class="btn btn-ghost btn-sm" @click="openSaveModal('competitor')">Save All to List</button>
+          </div>
+          <div class="card p-0 overflow-hidden">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Keyword</th>
+                    <th>Volume</th>
+                    <th>CPC</th>
+                    <th>Competition</th>
+                    <th>Intent</th>
+                    <th>Opp. Score</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(kw, i) in competitor.results" :key="i">
+                    <tr>
+                      <td class="font-medium" x-text="kw.keyword"></td>
+                      <td x-text="fmtVol(kw.search_volume)"></td>
+                      <td x-text="'$' + kw.cpc.toFixed(2)"></td>
+                      <td><span class="badge" :class="compClass(kw.competition_index)" x-text="compLabel(kw.competition_index) + ' (' + kw.competition_index + ')'"></span></td>
+                      <td><span class="badge" :class="intentClass(kw.intent)" x-text="kw.intent"></span></td>
+                      <td><span :class="scoreClass(kw.opportunity_score)" x-text="kw.opportunity_score"></span></td>
+                      <td><button class="btn btn-ghost btn-sm" @click="quickSave(kw)">+ Save</button></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <div x-show="!competitor.results.length && !competitor.loading" class="text-center py-16" style="color:var(--muted);">
+        <svg class="mx-auto mb-3 opacity-30" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><path d="m20 2-5 5"/><path d="m15 2 5 0 0 5"/></svg>
+        <p>Enter a competitor domain to reverse-engineer their SSDI keyword strategy</p>
+      </div>
+    </div>
+
+    <!-- ── SAVED LISTS ─────────────────────────────────────────────────────── -->
+    <div x-show="view==='lists'">
+      <h1 class="text-xl font-bold mb-1">Saved Lists</h1>
+      <p class="text-sm mb-5" style="color:var(--muted);">Your saved keyword sets. Export any list to CSV for Google Ads upload.</p>
+
+      <template x-if="!lists.active">
+        <div>
+          <template x-if="lists.data.length === 0">
+            <div class="text-center py-16" style="color:var(--muted);">
+              <svg class="mx-auto mb-3 opacity-30" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+              <p>No saved lists yet. Save keywords from any search result.</p>
+            </div>
+          </template>
+          <div class="grid gap-3">
+            <template x-for="list in lists.data" :key="list.id">
+              <div class="card flex items-center justify-between cursor-pointer hover:border-purple-700 transition-colors" @click="openList(list.id)">
+                <div>
+                  <div class="font-semibold" x-text="list.name"></div>
+                  <div class="text-xs mt-0.5" style="color:var(--muted);"><span x-text="list.keyword_count"></span> keywords · <span x-text="fmtDate(list.created_at)"></span></div>
+                </div>
+                <div class="flex gap-2" @click.stop>
+                  <a :href="'/api/lists/' + list.id + '/export'" class="btn btn-ghost btn-sm">Export CSV</a>
+                  <button class="btn btn-ghost btn-sm" style="color:var(--red);" @click="deleteList(list.id)">Delete</button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <template x-if="lists.active">
+        <div>
+          <button class="btn btn-ghost btn-sm mb-4" @click="lists.active=null;loadLists()">← Back to Lists</button>
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="font-bold text-lg" x-text="lists.activeName"></h2>
+            <a :href="'/api/lists/' + lists.active + '/export'" class="btn btn-primary btn-sm">Export CSV</a>
+          </div>
+          <div class="card p-0 overflow-hidden">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Keyword</th>
+                    <th>Volume</th>
+                    <th>CPC</th>
+                    <th>Competition</th>
+                    <th>Intent</th>
+                    <th>Opp. Score</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="kw in lists.activeKeywords" :key="kw.id">
+                    <tr>
+                      <td class="font-medium" x-text="kw.keyword"></td>
+                      <td x-text="fmtVol(kw.search_volume)"></td>
+                      <td x-text="'$' + (kw.cpc||0).toFixed(2)"></td>
+                      <td><span class="badge" :class="compClass(kw.competition_index)" x-text="compLabel(kw.competition_index)"></span></td>
+                      <td><span class="badge" :class="intentClass(kw.intent)" x-text="kw.intent"></span></td>
+                      <td><span :class="scoreClass(kw.opportunity_score)" x-text="kw.opportunity_score"></span></td>
+                      <td><button class="btn btn-ghost btn-sm" style="color:var(--red);" @click="removeFromList(kw.id)">Remove</button></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- ── HISTORY ─────────────────────────────────────────────────────────── -->
+    <div x-show="view==='history'">
+      <h1 class="text-xl font-bold mb-1">Search History</h1>
+      <p class="text-sm mb-5" style="color:var(--muted);">All previous searches. Results are cached for 24 hours — re-running the same query costs no API credits.</p>
+
+      <div class="card p-0 overflow-hidden">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Seed / Domain</th>
+                <th>Mode</th>
+                <th>Results</th>
+                <th>Date</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="h in history" :key="h.id">
+                <tr>
+                  <td class="font-medium" x-text="h.seed_term"></td>
+                  <td><span class="badge intent-gen" x-text="h.mode"></span></td>
+                  <td x-text="h.result_count"></td>
+                  <td x-text="fmtDate(h.created_at)" style="color:var(--muted);"></td>
+                  <td>
+                    <button class="btn btn-ghost btn-sm" @click="rerunFromHistory(h)">Re-run</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="history.length===0">
+                <td colspan="5" class="text-center py-8" style="color:var(--muted);">No searches yet</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Save Modal -->
+<div x-show="modal.show" x-transition class="fixed inset-0 z-50 flex items-center justify-center" style="background:rgba(0,0,0,0.6);">
+  <div class="card w-96" @click.stop>
+    <h3 class="font-bold text-base mb-4">Save to List</h3>
+    <div class="mb-3">
+      <label class="block text-xs mb-1.5" style="color:var(--muted);">List Name</label>
+      <input class="input w-full" x-model="modal.listName" placeholder="e.g. ALJ Appeal Keywords Q3" @keydown.enter="confirmSave()" />
+    </div>
+    <div class="mb-4">
+      <label class="block text-xs mb-1.5" style="color:var(--muted);">Keywords to save</label>
+      <p class="text-sm" style="color:var(--text);"><span x-text="modal.keywords.length"></span> keywords</p>
+    </div>
+    <div class="flex gap-2 justify-end">
+      <button class="btn btn-ghost" @click="modal.show=false">Cancel</button>
+      <button class="btn btn-primary" @click="confirmSave()">Save List</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function app() {
+  return {
+    view: 'research',
+    apiStatus: false,
+    cacheHits: 0,
+    toast: { show: false, msg: '', type: '' },
+    history: [],
+    lists: { data: [], active: null, activeName: '', activeKeywords: [] },
+    modal: { show: false, listName: '', keywords: [], sourceView: '' },
+
+    nav: [
+      { id:'research',   label:'Keyword Research', icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>' },
+      { id:'gaps',       label:'Gap Finder',       icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>' },
+      { id:'longtail',   label:'Long-tail Mining', icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18M3 9h18M3 15h12M3 21h8"/></svg>' },
+      { id:'competitor', label:'Competitor Spy',   icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><path d="m20 2-5 5"/><path d="m15 2 5 0 0 5"/></svg>' },
+      { id:'lists',      label:'Saved Lists',      icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>' },
+      { id:'history',    label:'History',          icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="12 8 12 12 14 14"/><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/></svg>' },
+    ],
+
+    research: { seed:'', minVolume:50, maxComp:100, intentFilter:'All', loading:false, results:[], sort:'opportunity_score', dir:-1 },
+    gaps:     { seed:'', minVolume:50, maxComp:40,  loading:false, results:[] },
+    longtail: { seed:'', minVolume:10, minWords:3,  loading:false, results:[] },
+    competitor: { domain:'', loading:false, results:[] },
+
+    async init() {
+      fetch('/api/health').then(r=>r.json()).then(d=>{ this.apiStatus = d.dataforseo; });
+      this.loadHistory();
+      this.loadLists();
+    },
+
+    // ── API calls ────────────────────────────────────────────────────────────
+
+    async runResearch() {
+      if (!this.research.seed.trim()) return;
+      this.research.loading = true;
+      this.research.results = [];
+      try {
+        const r = await fetch('/api/research', { method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ seed: this.research.seed, min_volume: this.research.minVolume, max_competition: this.research.maxComp, intent_filter: this.research.intentFilter }) });
+        const d = await r.json();
+        this.research.results = d.keywords || [];
+        if (!r.ok) throw new Error(d.detail || 'API error');
+        this.showToast(`${d.total} keywords found`, 'success');
+        this.loadHistory();
+      } catch(e) { this.showToast(e.message, 'error'); }
+      this.research.loading = false;
+    },
+
+    async runGaps() {
+      if (!this.gaps.seed.trim()) return;
+      this.gaps.loading = true;
+      this.gaps.results = [];
+      try {
+        const r = await fetch('/api/gaps', { method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ seed: this.gaps.seed, min_volume: this.gaps.minVolume, max_competition: this.gaps.maxComp }) });
+        const d = await r.json();
+        this.gaps.results = d.keywords || [];
+        if (!r.ok) throw new Error(d.detail || 'API error');
+        this.showToast(`${d.total} gaps found`, 'success');
+        this.loadHistory();
+      } catch(e) { this.showToast(e.message, 'error'); }
+      this.gaps.loading = false;
+    },
+
+    async runLongtail() {
+      if (!this.longtail.seed.trim()) return;
+      this.longtail.loading = true;
+      this.longtail.results = [];
+      try {
+        const r = await fetch('/api/longtail', { method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ seed: this.longtail.seed, min_volume: this.longtail.minVolume, min_words: this.longtail.minWords, max_competition: 100 }) });
+        const d = await r.json();
+        this.longtail.results = d.keywords || [];
+        if (!r.ok) throw new Error(d.detail || 'API error');
+        this.showToast(`${d.total} long-tail phrases found`, 'success');
+        this.loadHistory();
+      } catch(e) { this.showToast(e.message, 'error'); }
+      this.longtail.loading = false;
+    },
+
+    async runCompetitor() {
+      if (!this.competitor.domain.trim()) return;
+      this.competitor.loading = true;
+      this.competitor.results = [];
+      try {
+        const r = await fetch(`/api/competitor?domain=${encodeURIComponent(this.competitor.domain)}`);
+        const d = await r.json();
+        this.competitor.results = d.keywords || [];
+        if (!r.ok) throw new Error(d.detail || 'API error');
+        this.showToast(`${d.total} SSDI keywords found`, 'success');
+        this.loadHistory();
+      } catch(e) { this.showToast(e.message, 'error'); }
+      this.competitor.loading = false;
+    },
+
+    async loadHistory() {
+      const r = await fetch('/api/history');
+      this.history = await r.json();
+    },
+
+    async loadLists() {
+      const r = await fetch('/api/lists');
+      this.lists.data = await r.json();
+    },
+
+    async openList(id) {
+      const list = this.lists.data.find(l => l.id === id);
+      this.lists.activeName = list?.name || '';
+      this.lists.active = id;
+      const r = await fetch(`/api/lists/${id}`);
+      const d = await r.json();
+      this.lists.activeKeywords = d.keywords;
+    },
+
+    async deleteList(id) {
+      if (!confirm('Delete this list?')) return;
+      await fetch(`/api/lists/${id}`, { method:'DELETE' });
+      this.loadLists();
+      this.showToast('List deleted', 'success');
+    },
+
+    async removeFromList(kwId) {
+      await fetch(`/api/lists/keywords/${kwId}`, { method:'DELETE' });
+      this.lists.activeKeywords = this.lists.activeKeywords.filter(k => k.id !== kwId);
+    },
+
+    async confirmSave() {
+      if (!this.modal.listName.trim()) return;
+      const r = await fetch('/api/lists', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ list_name: this.modal.listName, keywords: this.modal.keywords }) });
+      const d = await r.json();
+      this.modal.show = false;
+      this.modal.listName = '';
+      this.loadLists();
+      this.showToast(`Saved ${this.modal.keywords.length} keywords to "${d.name}"`, 'success');
+    },
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    openSaveModal(sourceView) {
+      const map = { research: this.research.results, gaps: this.gaps.results, longtail: this.longtail.results, competitor: this.competitor.results };
+      this.modal.keywords = map[sourceView] || [];
+      this.modal.sourceView = sourceView;
+      this.modal.show = true;
+    },
+
+    saveSelected(selected, results, sourceView) {
+      this.modal.keywords = selected.map(i => results[i]);
+      this.modal.sourceView = sourceView;
+      this.modal.show = true;
+    },
+
+    quickSave(kw) {
+      this.modal.keywords = [kw];
+      this.modal.show = true;
+    },
+
+    rerunFromHistory(h) {
+      const modeMap = { 'Research': 'research', 'Gap Finder': 'gaps', 'Long-tail': 'longtail', 'Competitor': 'competitor' };
+      const v = modeMap[h.mode] || 'research';
+      this.view = v;
+      if (v === 'competitor') this.competitor.domain = h.seed_term;
+      else if (v === 'gaps') this.gaps.seed = h.seed_term;
+      else if (v === 'longtail') this.longtail.seed = h.seed_term;
+      else this.research.seed = h.seed_term;
+    },
+
+    sortResearch(field) {
+      if (this.research.sort === field) { this.research.dir *= -1; }
+      else { this.research.sort = field; this.research.dir = -1; }
+      this.research.results.sort((a,b) => (a[field] - b[field]) * this.research.dir);
+    },
+
+    showToast(msg, type='success') {
+      this.toast = { show:true, msg, type };
+      setTimeout(() => { this.toast.show = false; }, 3500);
+    },
+
+    fmtVol(v) { return v >= 1000 ? (v/1000).toFixed(1)+'K' : (v || 0).toString(); },
+
+    fmtDate(s) {
+      const d = new Date(s + (s.includes('T') ? '' : 'Z'));
+      return d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+    },
+
+    avgCPC(kws) { if(!kws.length) return '0.00'; return (kws.reduce((a,k)=>a+k.cpc,0)/kws.length).toFixed(2); },
+    avgComp(kws) { if(!kws.length) return '0'; return Math.round(kws.reduce((a,k)=>a+k.competition_index,0)/kws.length); },
+
+    compLabel(ci) { return ci <= 33 ? 'LOW' : ci <= 66 ? 'MED' : 'HIGH'; },
+    compClass(ci) { return ci <= 33 ? 'comp-low' : ci <= 66 ? 'comp-med' : 'comp-high'; },
+
+    intentClass(intent) {
+      const map = {
+        'New Application':   'intent-new',
+        'Appeal / ALJ':      'intent-appeal',
+        'Denial Recovery':   'intent-denial',
+        'Rep / Attorney':    'intent-rep',
+        'Eligibility':       'intent-elig',
+        'Benefits / Amount': 'intent-benefit',
+        'Condition-Specific':'intent-cond',
+        'General SSDI':      'intent-gen',
+      };
+      return map[intent] || 'intent-gen';
+    },
+
+    scoreClass(s) { return s >= 70 ? 'score-high' : s >= 35 ? 'score-med' : 'score-low'; },
+  };
+}
+</script>
+</body>
+</html>
