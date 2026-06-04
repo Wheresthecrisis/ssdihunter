@@ -49,6 +49,9 @@
     .score-high{color:var(--green);font-weight:700}
     .score-med{color:var(--yellow);font-weight:600}
     .score-low{color:var(--muted)}
+    .tier-strong{background:rgba(63,185,80,.18);color:#3fb950;border:1px solid rgba(63,185,80,.35)}
+    .tier-moderate{background:rgba(210,153,34,.15);color:#d29922;border:1px solid rgba(210,153,34,.3)}
+    .tier-weak{background:rgba(139,148,158,.1);color:#8b949e;border:1px solid rgba(139,148,158,.25)}
     .table-wrap{overflow-x:auto}
     table{width:100%;border-collapse:collapse;font-size:13px}
     thead th{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
@@ -171,7 +174,8 @@
                   <th>Sources</th>
                   <th><button class="sort-btn" :class="{active:research.sort==='frequency'}" @click="sortR('frequency')">Frequency ⇅</button></th>
                   <th>Intent</th>
-                  <th><button class="sort-btn" :class="{active:research.sort==='opportunity_score'}" @click="sortR('opportunity_score')">Opp. Score ⇅</button></th>
+                  <th>Signal Tier</th>
+                  <th><button class="sort-btn" :class="{active:research.sort==='opportunity_score'}" @click="sortR('opportunity_score')">Raw Score ⇅</button></th>
                   <th></th>
                 </tr></thead>
                 <tbody>
@@ -183,7 +187,8 @@
                       <td><span class="badge" :class="kw.source_count===2?'src-both':'src-one'" x-text="kw.source_count===2?'G + DDG':kw.sources[0]==='google'?'Google':'DuckDuckGo'"></span></td>
                       <td x-text="kw.frequency"></td>
                       <td><span class="badge" :class="intentClass(kw.intent)" x-text="kw.intent"></span></td>
-                      <td><span :class="scoreClass(kw.opportunity_score)" x-text="kw.opportunity_score"></span></td>
+                      <td><span class="badge" :class="tierClass(kw.frequency,kw.best_rank,kw.source_count)" x-text="tier(kw.frequency,kw.best_rank,kw.source_count)"></span></td>
+                      <td><span class="text-xs font-mono" style="color:var(--muted);" x-text="'f:'+kw.frequency+' r:#'+kw.best_rank+' s:'+kw.source_count"></span></td>
                       <td><button class="btn btn-ghost btn-sm" @click="quickSave(kw)">+ Save</button></td>
                     </tr>
                   </template>
@@ -238,7 +243,7 @@
             <button class="btn btn-ghost btn-sm" @click="openSaveModal('gaps')">Save All</button>
           </div>
           <div class="card p-0 overflow-hidden"><div class="table-wrap"><table>
-            <thead><tr><th>Keyword</th><th>Rank</th><th>Frequency</th><th>Intent</th><th>Opp. Score</th><th></th></tr></thead>
+            <thead><tr><th>Keyword</th><th>Rank</th><th>Frequency</th><th>Intent</th><th>Signal Tier</th><th>Raw Score</th><th></th></tr></thead>
             <tbody>
               <template x-for="(kw,i) in gaps.results" :key="i">
                 <tr>
@@ -246,7 +251,8 @@
                   <td><span :class="rankClass(kw.best_rank)" x-text="'#'+kw.best_rank"></span></td>
                   <td x-text="kw.frequency"></td>
                   <td><span class="badge" :class="intentClass(kw.intent)" x-text="kw.intent"></span></td>
-                  <td><span :class="scoreClass(kw.opportunity_score)" x-text="kw.opportunity_score"></span></td>
+                  <td><span class="badge" :class="tierClass(kw.frequency,kw.best_rank,kw.source_count)" x-text="tier(kw.frequency,kw.best_rank,kw.source_count)"></span></td>
+                  <td><span class="text-xs font-mono" style="color:var(--muted);" x-text="'f:'+kw.frequency+' r:#'+kw.best_rank+' s:'+kw.source_count"></span></td>
                   <td><button class="btn btn-ghost btn-sm" @click="quickSave(kw)">+ Save</button></td>
                 </tr>
               </template>
@@ -302,7 +308,7 @@
             <button class="btn btn-ghost btn-sm" @click="openSaveModal('longtail')">Save All</button>
           </div>
           <div class="card p-0 overflow-hidden"><div class="table-wrap"><table>
-            <thead><tr><th>Keyword</th><th>Words</th><th>Rank</th><th>Sources</th><th>Intent</th><th>LT Score</th><th></th></tr></thead>
+            <thead><tr><th>Keyword</th><th>Words</th><th>Rank</th><th>Sources</th><th>Intent</th><th>Signal Tier</th><th>Raw Score</th><th></th></tr></thead>
             <tbody>
               <template x-for="(kw,i) in longtail.results" :key="i">
                 <tr>
@@ -311,7 +317,8 @@
                   <td><span :class="rankClass(kw.best_rank)" x-text="'#'+kw.best_rank"></span></td>
                   <td><span class="badge" :class="kw.source_count===2?'src-both':'src-one'" x-text="kw.source_count===2?'G+DDG':kw.sources[0]==='google'?'G':'DDG'"></span></td>
                   <td><span class="badge" :class="intentClass(kw.intent)" x-text="kw.intent"></span></td>
-                  <td><span :class="scoreClass(kw.longtail_score)" x-text="kw.longtail_score"></span></td>
+                  <td><span class="badge" :class="tierClass(kw.frequency,kw.best_rank,kw.source_count)" x-text="tier(kw.frequency,kw.best_rank,kw.source_count)"></span></td>
+                  <td><span class="text-xs font-mono" style="color:var(--muted);" x-text="'f:'+kw.frequency+' r:#'+kw.best_rank+' s:'+kw.source_count"></span></td>
                   <td><button class="btn btn-ghost btn-sm" @click="quickSave(kw)">+ Save</button></td>
                 </tr>
               </template>
@@ -364,7 +371,7 @@
             <a :href="'/api/lists/'+lists.active+'/export'" class="btn btn-primary btn-sm">Export CSV</a>
           </div>
           <div class="card p-0 overflow-hidden"><div class="table-wrap"><table>
-            <thead><tr><th>Keyword</th><th>Rank</th><th>Sources</th><th>Frequency</th><th>Intent</th><th>Opp. Score</th><th></th></tr></thead>
+            <thead><tr><th>Keyword</th><th>Rank</th><th>Sources</th><th>Frequency</th><th>Intent</th><th>Signal Tier</th><th>Raw Score</th><th></th></tr></thead>
             <tbody>
               <template x-for="kw in lists.activeKeywords" :key="kw.id">
                 <tr>
@@ -373,7 +380,8 @@
                   <td><span class="badge" :class="kw.source_count===2?'src-both':'src-one'" x-text="kw.source_count===2?'G+DDG':'Single'"></span></td>
                   <td x-text="kw.frequency||'—'"></td>
                   <td><span class="badge" :class="intentClass(kw.intent)" x-text="kw.intent"></span></td>
-                  <td><span :class="scoreClass(kw.opportunity_score)" x-text="kw.opportunity_score"></span></td>
+                  <td><span class="badge" :class="tierClass(kw.frequency,kw.best_rank,kw.source_count)" x-text="tier(kw.frequency,kw.best_rank,kw.source_count)"></span></td>
+                  <td><span class="text-xs font-mono" style="color:var(--muted);" x-text="'f:'+(kw.frequency||'?')+' r:#'+(kw.best_rank||'?')+' s:'+(kw.source_count||'?')"></span></td>
                   <td><button class="btn btn-ghost btn-sm" style="color:var(--red);" @click="removeFromList(kw.id)">Remove</button></td>
                 </tr>
               </template>
@@ -562,6 +570,18 @@ function app() {
 
     rankClass(r)  { return !r?'rank-low':r<=3?'rank-top':r<=6?'rank-mid':'rank-low'; },
     scoreClass(s) { return s>=70?'score-high':s>=35?'score-med':'score-low'; },
+
+    tier(freq, rank, sources) {
+      // Strong: confirmed by both sources AND (high freq OR top rank)
+      if (sources === 2 && (freq >= 8 || rank <= 3)) return 'Strong';
+      // Moderate: either both sources, or single source with good freq+rank
+      if (sources === 2 || (freq >= 5 && rank <= 5)) return 'Moderate';
+      return 'Weak';
+    },
+    tierClass(freq, rank, sources) {
+      const t = this.tier(freq, rank, sources);
+      return t === 'Strong' ? 'badge tier-strong' : t === 'Moderate' ? 'badge tier-moderate' : 'badge tier-weak';
+    },
 
     intentClass(intent) {
       const map={'New Application':'intent-new','Appeal / ALJ':'intent-appeal',
