@@ -88,44 +88,77 @@ INTENT_PATTERNS = [
     ]),
 ]
 
-# Keywords that confirm SSDI/SSI relevance
+# Broad signals — any keyword containing these roots is a candidate
+# Strategy: cast wide net, then exclude non-SSDI noise below
 SSDI_SIGNALS = [
+    r'\bdisabilit\w*\b',        # disability, disabilities, disabled
+    r'\bdisabled\b',
     r'\bssdi\b',
     r'\bssi\b',
-    r'\bsocial security disability\b',
-    r'\bsupplemental security income\b',
-    r'\bdisability (benefit|claim|application|appeal|attorney|lawyer|income|insurance|payment|check|denial|hearing|representative|eligibility|qualification|backpay|back pay|approved|approval|status|case)\b',
-    r'\b(apply|applying|file|filing|qualify|qualified) for disability\b',
-    r'\bdisability (denied|approval|approved|determination)\b',
-    r'\b(new|initial) disability (claim|application)\b',
-    r'\bdisability insurance benefits\b',
-    r'\bsocial security (claim|claimant|benefits|hearing|judge)\b',
-    r'\bssa (disability|claim|hearing|decision|appeal)\b',
-    r'\b(alj|administrative law judge)\b',
-    r'\bdisability (lawyer|attorney|representative|advocate)\b',
-    r'\bhow (long|much).{0,20}(ssdi|ssi|disability benefit)\b',
-    r'\b(onset date|disability onset)\b',
+    r'\bsocial security\b',
+    r'\bsupplemental security\b',
+    r'\balj\b',
+    r'\badministrative law judge\b',
     r'\bpoms\b',
+    r'\brfc\b',
+    r'\bresidual functional capacity\b',
+    r'\bonset date\b',
+    r'\bwork credits\b',
+    r'\bsubstantial gainful activity\b',
+    r'\bsga\b',
+    r'\bblue book (listing|impairment)\b',
+    r'\blisting of impairments\b',
     r'\bfive.step (sequential|evaluation|process)\b',
-    r'\bwork (credits|history).{0,20}(disability|ssdi)\b',
+    r'\bssa \b',                 # SSA followed by anything
+    r'\bsocial security administration\b',
 ]
 
-# Terms to exclude — not SSDI/SSI related despite containing "disability"
+# Exclude patterns — clearly not SSDI/SSI, strip these out
 EXCLUDE_PATTERNS = [
-    r'\bva (disability|claim|benefit|rating)\b',
-    r'\bveteran.{0,10}disability\b',
-    r'\bworkers.? comp\b',
-    r'\bworkers.? compensation\b',
-    r'\blong.term disability (insurance|claim|policy)\b',
-    r'\bshort.term disability\b',
-    r'\bada\b',  # Americans with Disabilities Act
-    r'\baccommodation\b',
-    r'\bdisability insurance (policy|coverage|plan|quote)\b',
+    # Veterans / military
+    r'\bva (disability|claim|benefit|rating|compensation)\b',
+    r'\bveteran.{0,15}(disability|benefit|claim)\b',
+    r'\bmilitary (disability|benefit)\b',
+    r'\bservice.connected\b',
+    # Workers comp
+    r'\bworkers.? comp(ensation)?\b',
+    r'\bworkplace (injury|accident)\b',
+    # Private insurance products
+    r'\blong.term disability (insurance|policy|coverage|plan|quote|carrier)\b',
+    r'\bshort.term disability (insurance|policy|coverage|plan)\b',
+    r'\bdisability insurance (policy|coverage|plan|quote|carrier|cost|premium|rate)\b',
     r'\blife insurance\b',
-    r'\bmedical (malpractice|negligence)\b',
+    r'\bprivate (disability|insurance)\b',
+    # Workplace / ADA / HR
+    r'\bada\b',
+    r'\baccommodation(s)?\b',
+    r'\bworkplace accommodation\b',
+    r'\bfmla\b',
+    r'\bleave of absence\b',
+    r'\bemployer\b',
+    r'\bhr department\b',
+    # Personal injury / legal unrelated
     r'\bpersonal injury\b',
     r'\bcar accident\b',
     r'\bslip and fall\b',
+    r'\bmedical malpractice\b',
+    r'\bnegligence\b',
+    # Education / developmental (non-claim context)
+    r'\blearning disabilit\w*\b',
+    r'\bspecial education\b',
+    r'\biep\b',
+    r'\b504 plan\b',
+    r'\bdevelopmental disabilit\w*.{0,20}(school|education|child|program|service|center|support)\b',
+    # Physical accessibility (non-claim)
+    r'\bdisability (parking|placard|ramp|access|bathroom|restroom|elevator|tag)\b',
+    r'\bwheelchair (ramp|lift|access)\b',
+    r'\baccessibilit\w*\b',
+    # Unrelated government programs
+    r'\bmedicaid\b',
+    r'\bmedicare (plan|advantage|supplement|part [abcd])\b',
+    r'\bsnap\b',
+    r'\bfood stamp\b',
+    r'\bunemployment (insurance|benefit|claim|compensation)\b',
 ]
 
 
