@@ -104,11 +104,13 @@ async def fetch_and_enrich(seed: str, mode: str) -> list:
         return cached
 
     seeds = expand_seed(seed)
+    errors = []
 
     async def fetch_one(s: str) -> list:
         try:
             return await dfs.get_keywords_for_seed(s)
-        except Exception:
+        except Exception as e:
+            errors.append(f"{s}: {e}")
             return []
 
     results_per_seed = await asyncio.gather(*[fetch_one(s) for s in seeds])
@@ -121,6 +123,9 @@ async def fetch_and_enrich(seed: str, mode: str) -> list:
             if kw and kw not in seen_keywords:
                 seen_keywords.add(kw)
                 all_raw.append(item)
+
+    if not all_raw and errors:
+        raise Exception("DataForSEO API errors: " + " | ".join(errors))
 
     enriched = enrich_keywords(all_raw)
     enriched = normalize_scores(enriched)
