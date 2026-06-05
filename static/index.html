@@ -611,14 +611,39 @@
 <div x-show="modal.show" x-transition class="fixed inset-0 z-50 flex items-center justify-center" style="background:rgba(0,0,0,.6);">
   <div class="card w-96" @click.stop>
     <h3 class="font-bold text-base mb-4">Save to List</h3>
-    <div class="mb-3">
+    <div class="mb-4 text-sm" style="color:var(--muted);"><span class="font-bold" style="color:var(--text);" x-text="modal.keywords.length"></span> keywords to save</div>
+
+    <!-- Mode toggle -->
+    <div class="flex gap-1 mb-4 p-1 rounded-lg" style="background:var(--surface);">
+      <button class="flex-1 py-1.5 rounded-md text-sm font-semibold transition-all"
+        :style="modal.mode==='existing' ? 'background:var(--card);color:var(--text)' : 'color:var(--muted)'"
+        @click="modal.mode='existing'" x-show="lists.data.length>0">Add to Existing</button>
+      <button class="flex-1 py-1.5 rounded-md text-sm font-semibold transition-all"
+        :style="modal.mode==='new' ? 'background:var(--card);color:var(--text)' : 'color:var(--muted)'"
+        @click="modal.mode='new'">Create New</button>
+    </div>
+
+    <!-- Existing list picker -->
+    <div x-show="modal.mode==='existing'" class="mb-4">
+      <label class="block text-xs mb-1.5" style="color:var(--muted);">Choose List</label>
+      <select class="input w-full" x-model="modal.existingId">
+        <option value="">— select a list —</option>
+        <template x-for="l in lists.data" :key="l.id">
+          <option :value="l.id" x-text="l.name+' ('+l.keyword_count+' kw)'"></option>
+        </template>
+      </select>
+    </div>
+
+    <!-- New list name -->
+    <div x-show="modal.mode==='new'" class="mb-4">
       <label class="block text-xs mb-1.5" style="color:var(--muted);">List Name</label>
       <input class="input w-full" x-model="modal.listName" placeholder="e.g. ALJ Appeal Keywords" @keydown.enter="confirmSave()" />
     </div>
-    <div class="mb-4 text-sm"><span x-text="modal.keywords.length"></span> keywords to save</div>
+
     <div class="flex gap-2 justify-end">
       <button class="btn btn-ghost" @click="modal.show=false">Cancel</button>
-      <button class="btn btn-primary" @click="confirmSave()">Save List</button>
+      <button class="btn btn-primary" @click="confirmSave()"
+        x-text="modal.mode==='existing' ? 'Add to List' : 'Create & Save'"></button>
     </div>
   </div>
 </div>
@@ -630,7 +655,7 @@ function app() {
     toast: {show:false, msg:'', type:''},
     history: [],
     lists: {data:[], active:null, activeName:'', activeKeywords:[]},
-    modal: {show:false, listName:'', keywords:[]},
+    modal: {show:false, listName:'', keywords:[], mode:'existing', existingId:''},
 
     nav: [
       {id:'research',  label:'Keyword Research', icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>'},
@@ -747,21 +772,50 @@ function app() {
     },
 
     async confirmSave() {
-      if (!this.modal.listName.trim()) return;
-      const r = await fetch('/api/lists',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({list_name:this.modal.listName, keywords:this.modal.keywords})});
-      const d = await r.json();
-      this.modal.show=false; this.modal.listName='';
-      this.loadLists();
-      this.showToast(`Saved ${this.modal.keywords.length} keywords to "${d.name}"`,'success');
+      const kws = this.modal.keywords;
+      if (this.modal.mode === 'existing') {
+        if (!this.modal.existingId) return;
+        const list = this.lists.data.find(l => l.id == this.modal.existingId);
+        await fetch(`/api/lists/${this.modal.existingId}/keywords`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({list_id: parseInt(this.modal.existingId), keywords: kws})
+        });
+        this.modal.show = false;
+        this.loadLists();
+        this.showToast(`Added ${kws.length} keywords to "${list?.name}"`, 'success');
+      } else {
+        if (!this.modal.listName.trim()) return;
+        const r = await fetch('/api/lists', {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({list_name: this.modal.listName, keywords: kws})});
+        const d = await r.json();
+        this.modal.show = false; this.modal.listName = '';
+        this.loadLists();
+        this.showToast(`Saved ${kws.length} keywords to "${d.name}"`, 'success');
+      }
     },
 
     openSaveModal(src) {
       const map={research:this.research.results, gaps:this.gaps.results, longtail:this.longtail.results};
-      this.modal.keywords=map[src]||[]; this.modal.show=true;
+      this.modal.keywords=map[src]||[];
+      this.modal.mode = this.lists.data.length ? 'existing' : 'new';
+      this.modal.existingId = this.lists.data.length ? this.lists.data[0].id : '';
+      this.modal.listName = '';
+      this.modal.show=true;
     },
-    saveSelected(sel,results) { this.modal.keywords=sel.map(i=>results[i]); this.modal.show=true; },
-    quickSave(kw) { this.modal.keywords=[kw]; this.modal.show=true; },
+    saveSelected(sel,results) {
+      this.modal.keywords=sel.map(i=>results[i]);
+      this.modal.mode = this.lists.data.length ? 'existing' : 'new';
+      this.modal.existingId = this.lists.data.length ? this.lists.data[0].id : '';
+      this.modal.listName = '';
+      this.modal.show=true;
+    },
+    quickSave(kw) {
+      this.modal.keywords=[kw];
+      this.modal.mode = this.lists.data.length ? 'existing' : 'new';
+      this.modal.existingId = this.lists.data.length ? this.lists.data[0].id : '';
+      this.modal.listName = '';
+      this.modal.show=true;
+    },
 
     async runMatchCol(tbl) {
       const src = this[tbl];

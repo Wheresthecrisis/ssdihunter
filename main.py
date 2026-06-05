@@ -160,6 +160,12 @@ async def delete_list(list_id: int):
     return {"ok": True}
 
 
+@app.post("/api/lists/{list_id}/keywords")
+async def add_to_list(list_id: int, req: AddToListRequest):
+    db.add_keywords_to_list(list_id, req.keywords)
+    return {"ok": True, "added": len(req.keywords)}
+
+
 @app.delete("/api/lists/keywords/{keyword_id}")
 async def delete_keyword(keyword_id: int):
     db.delete_list_keyword(keyword_id)
