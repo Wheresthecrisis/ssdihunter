@@ -36,7 +36,7 @@ def _get_client() -> Anthropic:
 def advise(keywords: list[dict], quick: bool = False) -> list[dict]:
     """
     Use Claude to recommend match types for SSDI keywords.
-    quick=True returns match type + rationale only (no negatives) — faster and cheaper.
+    quick=True returns match type + rationale only (no negatives).
     quick=False returns full analysis including 10-20 negatives per keyword.
     """
     kw_data = [
@@ -102,9 +102,68 @@ Return ONLY a JSON array, no markdown:
 
     for kw in keywords:
         advice = result_map.get(kw["keyword"], {})
-        kw["match_type"]     = advice.get("match_type", "Exact")
+        kw["match_type"]      = advice.get("match_type", "Exact")
         kw["match_rationale"] = advice.get("rationale", "")
         if not quick:
             kw["negatives"] = advice.get("negatives", [])
 
     return keywords
+
+
+def consolidate(keywords: list[dict]) -> dict:
+    """
+    Analyze a full keyword set as a single ad group.
+    Returns one deduplicated master negative list for the group
+    plus any term-specific negatives that only apply to individual keywords.
+    All negatives are formatted as [exact match] brackets.
+    """
+    kw_data = [
+        {
+            "keyword": kw["keyword"],
+            "intent": kw.get("intent", "General SSDI"),
+            "word_count": len(kw["keyword"].split()),
+        }
+        for kw in keywords
+    ]
+
+    prompt = f"""You are a Google Ads specialist for Quikaid, an SSDI/SSI disability claims representative in the US.
+
+The following keywords will all go into a SINGLE ad group. Your job is to produce one
+consolidated negative keyword list for the entire ad group — not separate lists per keyword.
+
+{NEGATIVE_CONTEXT}
+
+KEYWORD SET:
+{json.dumps([k["keyword"] for k in kw_data], indent=2)}
+
+INSTRUCTIONS:
+1. Identify all negatives that apply to the group as a whole (master list)
+2. Identify any negatives that are specific to only one or two keywords in the set
+   (term-specific — e.g. "retirement" only matters if social security or age is mentioned)
+3. Deduplicate ruthlessly — if a negative covers the same intent as another, keep only the
+   most specific one
+4. All negative strings should be lowercase, no brackets (you will add those in output format)
+
+Return ONLY valid JSON, no markdown:
+{{
+  "match_type_summary": "1-2 sentences on the recommended match types across this ad group",
+  "master_negatives": ["phrase one", "phrase two", ...],
+  "term_specific": [
+    {{"keyword": "...", "negatives": ["...", "..."]}}
+  ]
+}}"""
+
+    message = _get_client().messages.create(
+        model="claude-opus-4-8",
+        max_tokens=4096,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    result = json.loads(message.content[0].text.strip())
+
+    # Wrap all negatives in [exact match] brackets
+    result["master_negatives"] = [f"[{n}]" for n in result.get("master_negatives", [])]
+    for ts in result.get("term_specific", []):
+        ts["negatives"] = [f"[{n}]" for n in ts.get("negatives", [])]
+
+    return result

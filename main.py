@@ -190,6 +190,20 @@ async def export_list(list_id: int):
     )
 
 
+@app.post("/api/match-adgroup")
+async def match_adgroup(req: MatchAdviceRequest):
+    try:
+        import match as m
+        if not req.keywords:
+            raise HTTPException(status_code=400, detail="No keywords provided")
+        result = await asyncio.to_thread(m.consolidate, req.keywords[:50])
+        return result
+    except KeyError:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not set in environment")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/match-advice")
 async def match_advice(req: MatchAdviceRequest):
     try:
