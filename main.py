@@ -56,6 +56,9 @@ class AddToListRequest(BaseModel):
 class VolumeEstimateRequest(BaseModel):
     keywords: list[dict]
 
+class MatchAdviceRequest(BaseModel):
+    keywords: list[dict]
+
 
 # ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -178,6 +181,21 @@ async def export_list(list_id: int):
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=ssdi-list-{list_id}.csv"},
     )
+
+
+@app.post("/api/match-advice")
+async def match_advice(req: MatchAdviceRequest):
+    try:
+        import match as m
+        if not req.keywords:
+            raise HTTPException(status_code=400, detail="No keywords provided")
+        kws = req.keywords[:30]  # cap at 30 — negatives per kw make responses large
+        enriched = await asyncio.to_thread(m.advise, kws)
+        return {"keywords": enriched}
+    except KeyError:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not set in environment")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/volume-estimate")
