@@ -58,6 +58,7 @@ class VolumeEstimateRequest(BaseModel):
 
 class MatchAdviceRequest(BaseModel):
     keywords: list[dict]
+    quick: bool = False  # True = match type + rationale only, no negatives
 
 
 # ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -190,7 +191,7 @@ async def match_advice(req: MatchAdviceRequest):
         if not req.keywords:
             raise HTTPException(status_code=400, detail="No keywords provided")
         kws = req.keywords[:30]  # cap at 30 — negatives per kw make responses large
-        enriched = await asyncio.to_thread(m.advise, kws)
+        enriched = await asyncio.to_thread(m.advise, kws, req.quick)
         return {"keywords": enriched}
     except KeyError:
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not set in environment")

@@ -217,6 +217,13 @@
                 </button>
               </template>
               <span x-show="research.volDone" class="text-xs" style="color:var(--green);">✓ Volume estimated</span>
+              <template x-if="!matchCol.research.done">
+                <button class="btn btn-ghost btn-sm" @click="runMatchCol('research')" :disabled="matchCol.research.loading">
+                  <span x-show="matchCol.research.loading" class="spinner mr-2" style="width:12px;height:12px;border-width:1.5px;"></span>
+                  <span x-text="matchCol.research.loading ? 'Analyzing...' : '🎯 Get Match Types (top 30)'"></span>
+                </button>
+              </template>
+              <span x-show="matchCol.research.done" class="text-xs" style="color:var(--green);">✓ Match types analyzed</span>
               <button class="btn btn-ghost btn-sm" @click="openSaveModal('research')">Save List</button>
             </div>
           </div>
@@ -246,7 +253,10 @@
                       <td x-text="kw.frequency"></td>
                       <td><span class="badge" :class="intentClass(kw.intent)" x-text="kw.intent"></span></td>
                       <td><span class="badge" :class="tierClass(kw.frequency,kw.best_rank,kw.source_count)" x-text="tier(kw.frequency,kw.best_rank,kw.source_count)"></span></td>
-                      <td><span class="badge" :class="matchClass(matchType(kw))" x-text="matchType(kw)"></span></td>
+                      <td>
+                        <span x-show="kw.match_type" class="badge" :class="matchClass(kw.match_type)" x-text="kw.match_type"></span>
+                        <span x-show="!kw.match_type" style="color:var(--muted);font-size:12px;">—</span>
+                      </td>
                       <td><span class="text-xs font-mono" style="color:var(--muted);" x-text="'f:'+kw.frequency+' r:#'+kw.best_rank+' s:'+kw.source_count"></span></td>
                       <template x-if="research.volDone">
                         <td>
@@ -305,7 +315,16 @@
         <div>
           <div class="flex items-center justify-between mb-3">
             <p class="text-sm" style="color:var(--muted);"><span x-text="gaps.results.length" class="font-bold" style="color:var(--green);"></span> gap opportunities found</p>
-            <button class="btn btn-ghost btn-sm" @click="openSaveModal('gaps')">Save All</button>
+            <div class="flex gap-2 items-center">
+              <template x-if="!matchCol.gaps.done">
+                <button class="btn btn-ghost btn-sm" @click="runMatchCol('gaps')" :disabled="matchCol.gaps.loading">
+                  <span x-show="matchCol.gaps.loading" class="spinner mr-2" style="width:12px;height:12px;border-width:1.5px;"></span>
+                  <span x-text="matchCol.gaps.loading ? 'Analyzing...' : '🎯 Get Match Types (top 30)'"></span>
+                </button>
+              </template>
+              <span x-show="matchCol.gaps.done" class="text-xs" style="color:var(--green);">✓ Match types analyzed</span>
+              <button class="btn btn-ghost btn-sm" @click="openSaveModal('gaps')">Save All</button>
+            </div>
           </div>
           <div class="card p-0 overflow-hidden"><div class="table-wrap"><table>
             <thead><tr>
@@ -326,7 +345,10 @@
                   <td x-text="kw.frequency"></td>
                   <td><span class="badge" :class="intentClass(kw.intent)" x-text="kw.intent"></span></td>
                   <td><span class="badge" :class="tierClass(kw.frequency,kw.best_rank,kw.source_count)" x-text="tier(kw.frequency,kw.best_rank,kw.source_count)"></span></td>
-                  <td><span class="badge" :class="matchClass(matchType(kw))" x-text="matchType(kw)"></span></td>
+                  <td>
+                    <span x-show="kw.match_type" class="badge" :class="matchClass(kw.match_type)" x-text="kw.match_type"></span>
+                    <span x-show="!kw.match_type" style="color:var(--muted);font-size:12px;">—</span>
+                  </td>
                   <td><span class="text-xs font-mono" style="color:var(--muted);" x-text="'f:'+kw.frequency+' r:#'+kw.best_rank+' s:'+kw.source_count"></span></td>
                   <td><button class="btn btn-ghost btn-sm" @click="quickSave(kw)">+ Save</button></td>
                 </tr>
@@ -380,7 +402,16 @@
         <div>
           <div class="flex items-center justify-between mb-3">
             <p class="text-sm" style="color:var(--muted);"><span x-text="longtail.results.length" class="font-bold" style="color:var(--accent2);"></span> long-tail phrases found</p>
-            <button class="btn btn-ghost btn-sm" @click="openSaveModal('longtail')">Save All</button>
+            <div class="flex gap-2 items-center">
+              <template x-if="!matchCol.longtail.done">
+                <button class="btn btn-ghost btn-sm" @click="runMatchCol('longtail')" :disabled="matchCol.longtail.loading">
+                  <span x-show="matchCol.longtail.loading" class="spinner mr-2" style="width:12px;height:12px;border-width:1.5px;"></span>
+                  <span x-text="matchCol.longtail.loading ? 'Analyzing...' : '🎯 Get Match Types (top 30)'"></span>
+                </button>
+              </template>
+              <span x-show="matchCol.longtail.done" class="text-xs" style="color:var(--green);">✓ Match types analyzed</span>
+              <button class="btn btn-ghost btn-sm" @click="openSaveModal('longtail')">Save All</button>
+            </div>
           </div>
           <div class="card p-0 overflow-hidden"><div class="table-wrap"><table>
             <thead><tr>
@@ -403,7 +434,10 @@
                   <td><span class="badge" :class="kw.source_count===2?'src-both':'src-one'" x-text="kw.source_count===2?'G+DDG':kw.sources[0]==='google'?'G':'DDG'"></span></td>
                   <td><span class="badge" :class="intentClass(kw.intent)" x-text="kw.intent"></span></td>
                   <td><span class="badge" :class="tierClass(kw.frequency,kw.best_rank,kw.source_count)" x-text="tier(kw.frequency,kw.best_rank,kw.source_count)"></span></td>
-                  <td><span class="badge" :class="matchClass(matchType(kw))" x-text="matchType(kw)"></span></td>
+                  <td>
+                    <span x-show="kw.match_type" class="badge" :class="matchClass(kw.match_type)" x-text="kw.match_type"></span>
+                    <span x-show="!kw.match_type" style="color:var(--muted);font-size:12px;">—</span>
+                  </td>
                   <td><span class="text-xs font-mono" style="color:var(--muted);" x-text="'f:'+kw.frequency+' r:#'+kw.best_rank+' s:'+kw.source_count"></span></td>
                   <td><button class="btn btn-ghost btn-sm" @click="quickSave(kw)">+ Save</button></td>
                 </tr>
@@ -612,12 +646,13 @@ function app() {
     gaps:     {seed:'', depth:'standard', loading:false, results:[], sort:'opportunity_score', dir:-1},
     longtail: {seed:'', minWords:3, depth:'standard', loading:false, results:[], sort:'opportunity_score', dir:-1},
     matchAdv: {listId:'', pasteText:'', loading:false, results:[]},
+    matchCol: {research:{loading:false,done:false}, gaps:{loading:false,done:false}, longtail:{loading:false,done:false}},
 
     async init() { this.loadHistory(); this.loadLists(); },
 
     async runResearch() {
       if (!this.research.seed.trim()) return;
-      this.research.loading = true; this.research.results = []; this.research.volDone = false;
+      this.research.loading = true; this.research.results = []; this.research.volDone = false; this.matchCol.research = {loading:false,done:false};
       try {
         const r = await fetch('/api/research', {method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({seed:this.research.seed, intent_filter:this.research.intentFilter, depth:this.research.depth})});
@@ -662,7 +697,7 @@ function app() {
 
     async runGaps() {
       if (!this.gaps.seed.trim()) return;
-      this.gaps.loading = true; this.gaps.results = [];
+      this.gaps.loading = true; this.gaps.results = []; this.matchCol.gaps = {loading:false,done:false};
       try {
         const r = await fetch('/api/gaps', {method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({seed:this.gaps.seed, depth:this.gaps.depth})});
@@ -677,7 +712,7 @@ function app() {
 
     async runLongtail() {
       if (!this.longtail.seed.trim()) return;
-      this.longtail.loading = true; this.longtail.results = [];
+      this.longtail.loading = true; this.longtail.results = []; this.matchCol.longtail = {loading:false,done:false};
       try {
         const r = await fetch('/api/longtail', {method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({seed:this.longtail.seed, min_words:this.longtail.minWords, depth:this.longtail.depth})});
@@ -727,6 +762,33 @@ function app() {
     },
     saveSelected(sel,results) { this.modal.keywords=sel.map(i=>results[i]); this.modal.show=true; },
     quickSave(kw) { this.modal.keywords=[kw]; this.modal.show=true; },
+
+    async runMatchCol(tbl) {
+      const src = this[tbl];
+      const col = this.matchCol[tbl];
+      col.loading = true;
+      try {
+        const top30 = [...src.results]
+          .sort((a,b) => b.opportunity_score - a.opportunity_score)
+          .slice(0, 30);
+        const r = await fetch('/api/match-advice', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({keywords: top30, quick: true})
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || 'Error');
+        const map = {};
+        for (const kw of d.keywords) map[kw.keyword] = kw;
+        src.results = src.results.map(kw => map[kw.keyword]
+          ? {...kw, match_type: map[kw.keyword].match_type, match_rationale: map[kw.keyword].match_rationale}
+          : kw
+        );
+        col.done = true;
+        this.showToast('Match types analyzed (top 30)', 'success');
+      } catch(e) { this.showToast(e.message, 'error'); }
+      col.loading = false;
+    },
 
     loadMatchList() {
       if (!this.matchAdv.listId) return;
@@ -820,23 +882,6 @@ function app() {
     rankClass(r)  { return !r?'rank-low':r<=3?'rank-top':r<=6?'rank-mid':'rank-low'; },
     scoreClass(s) { return s>=70?'score-high':s>=35?'score-med':'score-low'; },
 
-    matchType(kw) {
-      const words = kw.keyword.split(' ').length;
-      const intent = kw.intent || '';
-      const t = this.tier(kw.frequency, kw.best_rank, kw.source_count);
-      const kw_l = kw.keyword.toLowerCase();
-      // Always Exact
-      if (words <= 2) return 'Exact';
-      if (t === 'Weak') return 'Exact';
-      if (intent === 'Rep / Attorney') return 'Exact';
-      if (/\b(attorney|lawyer|law firm|advocate|representative)\b/.test(kw_l)) return 'Exact';
-      if (intent === 'Denial Recovery' && words <= 3) return 'Exact';
-      // Broad: long enough to be self-filtering
-      if (words >= 6) return 'Broad';
-      if (words >= 5 && t === 'Strong' && intent !== 'Rep / Attorney' && intent !== 'Appeal / ALJ') return 'Broad';
-      // Phrase: commercial intent with enough specificity
-      return 'Phrase';
-    },
     matchClass(type) {
       return type === 'Exact' ? 'badge match-exact' : type === 'Phrase' ? 'badge match-phrase' : 'badge match-broad';
     },
