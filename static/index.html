@@ -224,6 +224,7 @@
                 </button>
               </template>
               <span x-show="matchCol.research.done" class="text-xs" style="color:var(--green);">✓ Match types analyzed</span>
+              <button class="btn btn-ghost btn-sm" @click="copyForPlanner(research.results)">📋 Copy for KW Planner</button>
               <button class="btn btn-ghost btn-sm" @click="openSaveModal('research')">Save List</button>
             </div>
           </div>
@@ -323,6 +324,7 @@
                 </button>
               </template>
               <span x-show="matchCol.gaps.done" class="text-xs" style="color:var(--green);">✓ Match types analyzed</span>
+              <button class="btn btn-ghost btn-sm" @click="copyForPlanner(gaps.results)">📋 Copy for KW Planner</button>
               <button class="btn btn-ghost btn-sm" @click="openSaveModal('gaps')">Save All</button>
             </div>
           </div>
@@ -410,6 +412,7 @@
                 </button>
               </template>
               <span x-show="matchCol.longtail.done" class="text-xs" style="color:var(--green);">✓ Match types analyzed</span>
+              <button class="btn btn-ghost btn-sm" @click="copyForPlanner(longtail.results)">📋 Copy for KW Planner</button>
               <button class="btn btn-ghost btn-sm" @click="openSaveModal('longtail')">Save All</button>
             </div>
           </div>
@@ -624,7 +627,10 @@
           <button class="btn btn-ghost btn-sm mb-4" @click="lists.active=null;loadLists()">&larr; Back</button>
           <div class="flex items-center justify-between mb-3">
             <h2 class="font-bold text-lg" x-text="lists.activeName"></h2>
-            <a :href="'/api/lists/'+lists.active+'/export'" class="btn btn-primary btn-sm">Export CSV</a>
+            <div class="flex gap-2">
+              <button class="btn btn-ghost btn-sm" @click="copyForPlanner(lists.activeKeywords)">📋 Copy for KW Planner</button>
+              <a :href="'/api/lists/'+lists.active+'/export'" class="btn btn-primary btn-sm">Export CSV</a>
+            </div>
           </div>
           <div class="card p-0 overflow-hidden"><div class="table-wrap"><table>
             <thead><tr><th>Keyword</th><th>Rank</th><th>Sources</th><th>Frequency</th><th>Intent</th><th>Signal Tier</th><th>Raw Score</th><th></th></tr></thead>
@@ -962,6 +968,13 @@ function app() {
         this.showToast('Ad group negatives ready', 'success');
       } catch(e) { this.showToast(e.message, 'error'); }
       this.matchAdv.loading = false;
+    },
+
+    copyForPlanner(results) {
+      const text = (results||[]).map(k => k.keyword).join('\n');
+      navigator.clipboard.writeText(text).then(() =>
+        this.showToast(`${(results||[]).length} keywords copied — paste into Keyword Planner`, 'success')
+      );
     },
 
     copyNegatives(kw) {
