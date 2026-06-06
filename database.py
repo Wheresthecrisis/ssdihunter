@@ -3,7 +3,7 @@ import json
 import hashlib
 from datetime import datetime, timedelta
 
-DB_PATH = "ssdihunter.db"
+DB_PATH = "/data/ssdihunter.db"
 CACHE_TTL_HOURS = 12
 
 
