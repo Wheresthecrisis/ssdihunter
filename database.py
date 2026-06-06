@@ -1,9 +1,11 @@
+import os
 import sqlite3
 import json
 import hashlib
 from datetime import datetime, timedelta
 
 DB_PATH = "/data/ssdihunter.db"
+os.makedirs("/data", exist_ok=True)
 CACHE_TTL_HOURS = 12
 
 
