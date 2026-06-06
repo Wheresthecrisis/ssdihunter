@@ -2,8 +2,8 @@ import time
 from pytrends.request import TrendReq
 
 ANCHOR = "ssdi"
-# Conservative US monthly search baseline for "ssdi" (~200K/mo)
-ANCHOR_MONTHLY = 200_000
+# Verified US monthly search volume for "ssdi" per Google Keyword Planner
+ANCHOR_MONTHLY = 90_600
 
 
 def _fetch_batch(keywords: list[str], anchor: str) -> dict[str, float]:
