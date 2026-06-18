@@ -664,30 +664,35 @@
             <div class="flex items-center justify-between mb-3">
               <div>
                 <div class="font-semibold mb-0.5">Promotion Candidates <span class="badge" style="background:rgba(63,185,80,.15);color:#56d364;" x-text="searchTerms.result.promotions.length"></span></div>
-                <div class="text-xs" style="color:var(--muted);">Converting at or below target CPL — add as new exact-match keywords</div>
+                <div class="text-xs" style="color:var(--muted);">Converting at or below target CPL — add as new exact-match keywords, grouped by campaign</div>
               </div>
-              <div class="flex gap-2">
-                <button class="btn btn-ghost btn-sm" @click="copySTPromotions()" :disabled="!searchTerms.result.promotions.length">Copy All</button>
-                <button class="btn btn-ghost btn-sm" @click="exportSTSection('promotions')" :disabled="!searchTerms.result.promotions.length">Export CSV</button>
+              <button class="btn btn-ghost btn-sm" @click="exportSTSection('promotions')" :disabled="!searchTerms.result.promotions.length">Export CSV</button>
+            </div>
+            <template x-for="[campaign, items] in Object.entries(promotionsByCampaign())" :key="campaign">
+              <div class="mb-4">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="text-sm font-semibold" x-text="campaign || '(No campaign listed)'"></div>
+                  <button class="btn btn-ghost btn-sm" @click="copySTPromotions(campaign)">Copy <span x-text="items.length"></span></button>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead><tr><th>Search Term</th><th>Ad Group</th><th>Clicks</th><th>Cost</th><th>Conv</th><th>CPL</th></tr></thead>
+                    <tbody>
+                      <template x-for="p in items" :key="p.search_term">
+                        <tr>
+                          <td x-text="p.search_term"></td>
+                          <td style="color:var(--muted);font-size:12px;" x-text="p.ad_group"></td>
+                          <td x-text="p.clicks"></td>
+                          <td x-text="'$'+p.cost.toFixed(2)"></td>
+                          <td x-text="p.conversions"></td>
+                          <td x-text="'$'+p.cpl.toFixed(2)"></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-            <div class="table-wrap" x-show="searchTerms.result.promotions.length">
-              <table>
-                <thead><tr><th>Search Term</th><th>Ad Group</th><th>Clicks</th><th>Cost</th><th>Conv</th><th>CPL</th></tr></thead>
-                <tbody>
-                  <template x-for="p in searchTerms.result.promotions" :key="p.search_term">
-                    <tr>
-                      <td x-text="p.search_term"></td>
-                      <td style="color:var(--muted);font-size:12px;" x-text="p.ad_group"></td>
-                      <td x-text="p.clicks"></td>
-                      <td x-text="'$'+p.cost.toFixed(2)"></td>
-                      <td x-text="p.conversions"></td>
-                      <td x-text="'$'+p.cpl.toFixed(2)"></td>
-                    </tr>
-                  </template>
-                </tbody>
-              </table>
-            </div>
+            </template>
             <div x-show="!searchTerms.result.promotions.length" class="text-sm py-4 text-center" style="color:var(--muted);">No promotion candidates found in this report.</div>
           </div>
 
@@ -1170,17 +1175,27 @@ function app() {
       navigator.clipboard.writeText(text).then(()=>this.showToast('Negatives copied to clipboard','success'));
     },
 
-    copySTPromotions() {
-      const text = this.searchTerms.result.promotions.map(p => `[${p.search_term}]`).join('\n');
-      navigator.clipboard.writeText(text).then(()=>this.showToast('Promotion candidates copied to clipboard','success'));
+    promotionsByCampaign() {
+      const groups = {};
+      for (const p of this.searchTerms.result.promotions) {
+        const key = p.campaign || '';
+        (groups[key] = groups[key] || []).push(p);
+      }
+      return groups;
+    },
+
+    copySTPromotions(campaign) {
+      const items = this.searchTerms.result.promotions.filter(p => (p.campaign || '') === campaign);
+      const text = items.map(p => `[${p.search_term}]`).join('\n');
+      navigator.clipboard.writeText(text).then(()=>this.showToast(`${items.length} promotion candidates copied for ${campaign || 'this campaign'}`,'success'));
     },
 
     exportSTSection(section) {
       const rows = section === 'negatives'
         ? [['Search Term','Tier','Clicks','Cost','Conversions','CPL','Reason'],
            ...this.searchTerms.result.negatives.map(n => [n.search_term, n.tier, n.clicks, n.cost, n.conversions, n.cpl||'', n.reason])]
-        : [['Search Term','Ad Group','Clicks','Cost','Conversions','CPL'],
-           ...this.searchTerms.result.promotions.map(p => [p.search_term, p.ad_group, p.clicks, p.cost, p.conversions, p.cpl])];
+        : [['Search Term','Campaign','Ad Group','Clicks','Cost','Conversions','CPL'],
+           ...this.searchTerms.result.promotions.map(p => [p.search_term, p.campaign, p.ad_group, p.clicks, p.cost, p.conversions, p.cpl])];
       const csv = rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
       const a = document.createElement('a');
       a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);

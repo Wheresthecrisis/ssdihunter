@@ -64,13 +64,14 @@ def analyze(csv_text: str, target_cpl: float = 20.0, kill_multiplier: float = 2.
 
         agg = terms.setdefault(term, {
             "search_term": term, "clicks": 0.0, "impr": 0.0, "cost": 0.0,
-            "conversions": 0.0, "ad_groups": set(), "statuses": set(),
+            "conversions": 0.0, "ad_groups": set(), "campaigns": set(), "statuses": set(),
         })
         agg["clicks"] += clicks
         agg["impr"] += impr
         agg["cost"] += cost
         agg["conversions"] += conv
         agg["ad_groups"].add(row.get("Ad group") or "")
+        agg["campaigns"].add(row.get("Campaign") or "")
         agg["statuses"].add(status)
 
     # Prefer the report's "Total: Account" row for benchmarks — it reflects true
@@ -103,9 +104,10 @@ def analyze(csv_text: str, target_cpl: float = 20.0, kill_multiplier: float = 2.
         cpl = (cost / conv) if conv else None
         ctr = (clicks / impr * 100) if impr else 0.0
         ad_group = sorted(agg["ad_groups"], key=lambda g: -cost if g else 0)[0] if agg["ad_groups"] else ""
+        campaign = sorted(agg["campaigns"], key=lambda c: -cost if c else 0)[0] if agg["campaigns"] else ""
 
         entry = {
-            "search_term": agg["search_term"], "ad_group": ad_group,
+            "search_term": agg["search_term"], "ad_group": ad_group, "campaign": campaign,
             "clicks": clicks, "impr": impr, "cost": round(cost, 2),
             "conversions": conv, "cpl": round(cpl, 2) if cpl else None, "ctr": round(ctr, 2),
         }
