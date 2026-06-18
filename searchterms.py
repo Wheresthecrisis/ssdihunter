@@ -119,7 +119,7 @@ def analyze(csv_text: str, target_cpl: float = 20.0, kill_multiplier: float = 2.
         elif conv == 0 and impr >= min_clicks_for_significance * 3 and avg_ctr > 0 and ctr < avg_ctr * 0.5:
             watch_list.append({**entry, "tier": "Weak signal",
                                 "reason": f"CTR {ctr:.1f}% vs {avg_ctr:.1f}% account avg — low relevance, monitor"})
-        elif conv >= 1 and cpl is not None and cpl <= target_cpl and not _is_ssi_specific(agg["search_term"]):
+        elif conv >= 2 and cpl is not None and cpl <= target_cpl and not _is_ssi_specific(agg["search_term"]):
             promotions.append({**entry,
                                 "reason": f"{int(conv)} conversions at ${cpl:.2f}/conv — at or below ${target_cpl:.0f} target"})
 
