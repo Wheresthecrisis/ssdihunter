@@ -592,6 +592,136 @@
       </div>
     </div>
 
+    <!-- ── SEARCH TERMS ANALYZER ──────────────────────────────────────────── -->
+    <div x-show="view==='searchterms'">
+      <h1 class="text-xl font-bold mb-1">Search Terms Analyzer</h1>
+      <p class="text-sm mb-5" style="color:var(--muted);">Upload a Google Ads Search Terms Report (last 1–30 days). Get a copy/paste negative list for wasted spend and a promotion list of cheaper exact-match candidates — based on your account's actual CTR and conversion rate, not arbitrary cutoffs.</p>
+
+      <div class="card mb-5">
+        <div class="flex flex-wrap gap-3 items-end mb-3">
+          <div>
+            <label class="block text-xs mb-1.5" style="color:var(--muted);">Search Terms Report (CSV)</label>
+            <input type="file" accept=".csv" class="input" @change="searchTerms.file=$event.target.files[0]; searchTerms.fileName=$event.target.files[0]?.name||''" />
+          </div>
+          <div>
+            <label class="block text-xs mb-1.5" style="color:var(--muted);">Target CPL ($)</label>
+            <input type="number" class="input" style="width:100px;" x-model.number="searchTerms.targetCpl" min="1" />
+          </div>
+          <button class="btn btn-primary" @click="runSearchTerms()" :disabled="searchTerms.loading || !searchTerms.file">
+            <span x-show="searchTerms.loading" class="spinner mr-2"></span>
+            <span x-text="searchTerms.loading ? 'Analyzing...' : 'Analyze Report'"></span>
+          </button>
+        </div>
+        <div class="text-xs" style="color:var(--muted);">Export from Google Ads: Campaigns → Search terms → download CSV with Clicks, Impr., CTR, Cost, Conversions, Cost/conv. columns.</div>
+      </div>
+
+      <template x-if="searchTerms.result">
+        <div>
+          <!-- Stats -->
+          <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
+            <div class="stat-box"><div class="text-xs" style="color:var(--muted);">Terms Analyzed</div><div class="text-lg font-bold" x-text="searchTerms.result.stats.rows_analyzed"></div></div>
+            <div class="stat-box"><div class="text-xs" style="color:var(--muted);">Account Avg CTR</div><div class="text-lg font-bold" x-text="searchTerms.result.stats.avg_ctr+'%'"></div></div>
+            <div class="stat-box"><div class="text-xs" style="color:var(--muted);">Account Avg Conv Rate</div><div class="text-lg font-bold" x-text="searchTerms.result.stats.avg_conv_rate+'%'"></div></div>
+            <div class="stat-box"><div class="text-xs" style="color:var(--muted);">Overall CPL</div><div class="text-lg font-bold" x-text="searchTerms.result.stats.overall_cpl ? '$'+searchTerms.result.stats.overall_cpl : '—'"></div></div>
+            <div class="stat-box"><div class="text-xs" style="color:var(--muted);">Min Clicks for Signal</div><div class="text-lg font-bold" x-text="searchTerms.result.stats.min_clicks_for_significance"></div></div>
+          </div>
+
+          <!-- Negatives -->
+          <div class="card mb-4">
+            <div class="flex items-center justify-between mb-3">
+              <div>
+                <div class="font-semibold mb-0.5">Negative Keywords <span class="badge" style="background:rgba(248,81,73,.15);color:#ffa198;" x-text="searchTerms.result.negatives.length"></span></div>
+                <div class="text-xs" style="color:var(--muted);">Confirmed or statistically probable waste · exact match</div>
+              </div>
+              <div class="flex gap-2">
+                <button class="btn btn-ghost btn-sm" @click="copySTNegatives()" :disabled="!searchTerms.result.negatives.length">Copy All</button>
+                <button class="btn btn-ghost btn-sm" @click="exportSTSection('negatives')" :disabled="!searchTerms.result.negatives.length">Export CSV</button>
+              </div>
+            </div>
+            <div class="table-wrap" x-show="searchTerms.result.negatives.length">
+              <table>
+                <thead><tr><th>Search Term</th><th>Tier</th><th>Clicks</th><th>Cost</th><th>Conv</th><th>CPL</th><th>Reason</th></tr></thead>
+                <tbody>
+                  <template x-for="n in searchTerms.result.negatives" :key="n.search_term">
+                    <tr>
+                      <td x-text="n.search_term"></td>
+                      <td><span class="badge" :style="n.tier==='Confirmed waste' ? 'background:rgba(248,81,73,.2);color:#ff7b72' : 'background:rgba(210,153,34,.15);color:#e3b341'" x-text="n.tier"></span></td>
+                      <td x-text="n.clicks"></td>
+                      <td x-text="'$'+n.cost.toFixed(2)"></td>
+                      <td x-text="n.conversions"></td>
+                      <td x-text="n.cpl ? '$'+n.cpl.toFixed(2) : '—'"></td>
+                      <td style="color:var(--muted);font-size:12px;" x-text="n.reason"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+            <div x-show="!searchTerms.result.negatives.length" class="text-sm py-4 text-center" style="color:var(--muted);">No confirmed or statistically probable waste found in this report.</div>
+          </div>
+
+          <!-- Promotions -->
+          <div class="card mb-4">
+            <div class="flex items-center justify-between mb-3">
+              <div>
+                <div class="font-semibold mb-0.5">Promotion Candidates <span class="badge" style="background:rgba(63,185,80,.15);color:#56d364;" x-text="searchTerms.result.promotions.length"></span></div>
+                <div class="text-xs" style="color:var(--muted);">Converting at or below target CPL — add as new exact-match keywords</div>
+              </div>
+              <div class="flex gap-2">
+                <button class="btn btn-ghost btn-sm" @click="copySTPromotions()" :disabled="!searchTerms.result.promotions.length">Copy All</button>
+                <button class="btn btn-ghost btn-sm" @click="exportSTSection('promotions')" :disabled="!searchTerms.result.promotions.length">Export CSV</button>
+              </div>
+            </div>
+            <div class="table-wrap" x-show="searchTerms.result.promotions.length">
+              <table>
+                <thead><tr><th>Search Term</th><th>Ad Group</th><th>Clicks</th><th>Cost</th><th>Conv</th><th>CPL</th></tr></thead>
+                <tbody>
+                  <template x-for="p in searchTerms.result.promotions" :key="p.search_term">
+                    <tr>
+                      <td x-text="p.search_term"></td>
+                      <td style="color:var(--muted);font-size:12px;" x-text="p.ad_group"></td>
+                      <td x-text="p.clicks"></td>
+                      <td x-text="'$'+p.cost.toFixed(2)"></td>
+                      <td x-text="p.conversions"></td>
+                      <td x-text="'$'+p.cpl.toFixed(2)"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+            <div x-show="!searchTerms.result.promotions.length" class="text-sm py-4 text-center" style="color:var(--muted);">No promotion candidates found in this report.</div>
+          </div>
+
+          <!-- Watch list -->
+          <template x-if="searchTerms.result.watch_list.length">
+            <div class="card">
+              <div class="font-semibold mb-0.5">Watch List <span class="badge" style="background:rgba(139,148,158,.15);color:#8b949e;" x-text="searchTerms.result.watch_list.length"></span></div>
+              <div class="text-xs mb-3" style="color:var(--muted);">Low CTR relative to account average — not enough data to negative yet, monitor next cycle</div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Search Term</th><th>Impr.</th><th>CTR</th><th>Reason</th></tr></thead>
+                  <tbody>
+                    <template x-for="w in searchTerms.result.watch_list" :key="w.search_term">
+                      <tr>
+                        <td x-text="w.search_term"></td>
+                        <td x-text="w.impr"></td>
+                        <td x-text="w.ctr+'%'"></td>
+                        <td style="color:var(--muted);font-size:12px;" x-text="w.reason"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <div x-show="!searchTerms.result && !searchTerms.loading" class="text-center py-16" style="color:var(--muted);">
+        <svg class="mx-auto mb-3 opacity-30" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 21l-4.35-4.35"/><circle cx="10" cy="10" r="7"/></svg>
+        <p>Upload a Search Terms Report to find wasted spend and promotion candidates</p>
+      </div>
+    </div>
+
     <!-- ── SAVED LISTS ─────────────────────────────────────────────────────── -->
     <div x-show="view==='lists'">
       <h1 class="text-xl font-bold mb-1">Saved Lists</h1>
@@ -735,6 +865,7 @@ function app() {
       {id:'longtail',  label:'Long-tail Mining', icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18M3 9h18M3 15h12M3 21h8"/></svg>'},
       {id:'lists',     label:'Saved Lists',      icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>'},
       {id:'match',     label:'Match Advisor',    icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>'},
+      {id:'searchterms', label:'Search Terms',   icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-4.35-4.35"/><circle cx="10" cy="10" r="7"/><path d="M7 10h6M10 7v6"/></svg>'},
       {id:'history',   label:'History',          icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="12 8 12 12 14 14"/><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/></svg>'},
     ],
 
@@ -744,6 +875,7 @@ function app() {
     longtail: {seed:'', minWords:3, depth:'standard', loading:false, results:[], sort:'opportunity_score', dir:-1},
     matchAdv: {listId:'', pasteText:'', loading:false, results:[], adgroup:null, mode:'keyword'},
     matchCol: {research:{loading:false,done:false}, gaps:{loading:false,done:false}, longtail:{loading:false,done:false}},
+    searchTerms: {file:null, fileName:'', targetCpl:20, loading:false, result:null},
 
     async init() { this.loadHistory(); this.loadLists(); },
 
@@ -1015,6 +1147,44 @@ function app() {
       a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
       a.download = 'match-advice.csv';
       a.click();
+    },
+
+    async runSearchTerms() {
+      if (!this.searchTerms.file) return;
+      this.searchTerms.loading = true; this.searchTerms.result = null;
+      try {
+        const fd = new FormData();
+        fd.append('file', this.searchTerms.file);
+        fd.append('target_cpl', this.searchTerms.targetCpl);
+        const r = await fetch('/api/search-terms/analyze', {method:'POST', body:fd});
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail||'Error');
+        this.searchTerms.result = d;
+        this.showToast(`${d.negatives.length} negatives, ${d.promotions.length} promotion candidates found`, 'success');
+      } catch(e) { this.showToast(e.message, 'error'); }
+      this.searchTerms.loading = false;
+    },
+
+    copySTNegatives() {
+      const text = this.searchTerms.result.negatives.map(n => `[${n.search_term}]`).join('\n');
+      navigator.clipboard.writeText(text).then(()=>this.showToast('Negatives copied to clipboard','success'));
+    },
+
+    copySTPromotions() {
+      const text = this.searchTerms.result.promotions.map(p => p.search_term).join('\n');
+      navigator.clipboard.writeText(text).then(()=>this.showToast('Promotion candidates copied to clipboard','success'));
+    },
+
+    exportSTSection(section) {
+      const rows = section === 'negatives'
+        ? [['Search Term','Tier','Clicks','Cost','Conversions','CPL','Reason'],
+           ...this.searchTerms.result.negatives.map(n => [n.search_term, n.tier, n.clicks, n.cost, n.conversions, n.cpl||'', n.reason])]
+        : [['Search Term','Ad Group','Clicks','Cost','Conversions','CPL'],
+           ...this.searchTerms.result.promotions.map(p => [p.search_term, p.ad_group, p.clicks, p.cost, p.conversions, p.cpl])];
+      const csv = rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+      const a = document.createElement('a');
+      a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+      a.download = `search-terms-${section}.csv`; a.click();
     },
 
     rerun(h) {

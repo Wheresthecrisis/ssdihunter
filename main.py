@@ -8,12 +8,13 @@ from typing import Optional
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
 import database as db
 import autocomplete as ac
+import searchterms as st
 
 
 @asynccontextmanager
@@ -231,6 +232,17 @@ async def volume_estimate(req: VolumeEstimateRequest):
         return {"keywords": enriched}
     except KeyError:
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not set in environment")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/search-terms/analyze")
+async def analyze_search_terms(file: UploadFile = File(...), target_cpl: float = Form(20.0)):
+    try:
+        content = await file.read()
+        text = content.decode("utf-8-sig", errors="ignore")
+        result = st.analyze(text, target_cpl=target_cpl)
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
