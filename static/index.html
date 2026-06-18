@@ -1171,7 +1171,7 @@ function app() {
     },
 
     copySTPromotions() {
-      const text = this.searchTerms.result.promotions.map(p => p.search_term).join('\n');
+      const text = this.searchTerms.result.promotions.map(p => `[${p.search_term}]`).join('\n');
       navigator.clipboard.writeText(text).then(()=>this.showToast('Promotion candidates copied to clipboard','success'));
     },
 
