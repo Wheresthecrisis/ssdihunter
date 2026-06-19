@@ -672,11 +672,15 @@
               <div class="mb-4">
                 <div class="flex items-center justify-between mb-2">
                   <div class="text-sm font-semibold" x-text="campaign || '(No campaign listed)'"></div>
-                  <button class="btn btn-ghost btn-sm" @click="copySTPromotions(campaign)">Copy <span x-text="items.length"></span></button>
+                  <div class="flex gap-2">
+                    <button class="btn btn-ghost btn-sm" @click="copySTPromotions(campaign)">Copy <span x-text="items.length"></span> New Keywords</button>
+                    <button class="btn btn-ghost btn-sm" @click="copySTPromotionNegatives(campaign)">Copy Negatives to Add</button>
+                  </div>
                 </div>
+                <div class="text-xs mb-2" style="color:var(--muted);">After adding these as new exact-match keywords, add them as negative exact match on their original ad group below — otherwise the broader keyword there keeps competing for the same query.</div>
                 <div class="table-wrap">
                   <table>
-                    <thead><tr><th>Search Term</th><th>Ad Group</th><th>Clicks</th><th>Cost</th><th>Conv</th><th>CPL</th></tr></thead>
+                    <thead><tr><th>Search Term</th><th>Negative this on Ad Group</th><th>Clicks</th><th>Cost</th><th>Conv</th><th>CPL</th></tr></thead>
                     <tbody>
                       <template x-for="p in items" :key="p.search_term">
                         <tr>
@@ -1188,6 +1192,19 @@ function app() {
       const items = this.searchTerms.result.promotions.filter(p => (p.campaign || '') === campaign);
       const text = items.map(p => `[${p.search_term}]`).join('\n');
       navigator.clipboard.writeText(text).then(()=>this.showToast(`${items.length} promotion candidates copied for ${campaign || 'this campaign'}`,'success'));
+    },
+
+    copySTPromotionNegatives(campaign) {
+      const items = this.searchTerms.result.promotions.filter(p => (p.campaign || '') === campaign);
+      const byAdGroup = {};
+      for (const p of items) {
+        const key = p.ad_group || '(no ad group listed)';
+        (byAdGroup[key] = byAdGroup[key] || []).push(p.search_term);
+      }
+      const text = Object.entries(byAdGroup)
+        .map(([adGroup, terms]) => `== Ad Group: ${adGroup} ==\n` + terms.map(t => `[${t}]`).join('\n'))
+        .join('\n\n');
+      navigator.clipboard.writeText(text).then(()=>this.showToast('Negatives to add copied, grouped by ad group','success'));
     },
 
     exportSTSection(section) {
